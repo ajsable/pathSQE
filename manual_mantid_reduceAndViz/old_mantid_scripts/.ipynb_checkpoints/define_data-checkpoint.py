@@ -8,25 +8,23 @@ import numpy as np
 def define_data_set(**kwargs):
     shared_folder='/SNS/ARCS/IPTS-21211/shared/Dipanshu/'
     raw_data_folder='/SNS/ARCS/IPTS-21211/nexus/'
-    mde_folder='/SNS/ARCS/IPTS-21211/shared/Aiden/merged_mde/'
-    
-    T=650
-    E=70
-    
+    mde_folder='/SNS/ARCS/IPTS-21211/shared/Aiden/300K/mde/'
+
     data_set_list=[]
-    data_set={'Runs':list(range(28367,28532+1)), #not accurate since mde are already made
+    # T=300K Ei=12meV
+    data_set={'Runs':list(range(112488,112847+1)), #300K quick
+              #'Runs':list(range(314383,314400+1)),    #List of runs, or list of lists of runs that are added together
               'BackgroundRuns':None,   #range(297325,297337)Options: None;list of runs that are added together
               'RawDataFolder':raw_data_folder,      #Options:raw_data_folder string
               'MdeFolder':mde_folder,               #Options:mde_folder string
-              'MdeName':'FeSi_{}K_{}meV_UBcorrected'.format(T,E),   #Options:mde_name string
+              'MdeName':'FeSi_300K_Ei70meV_full',   #Options:mde_name string
               'BackgroundMdeName':'',      #Options:None;bg_mde_name string
-              'MaskingDataFile':shared_folder+'van108467_new.nxs',         #Options:None;data_file_name; van_449014_unmasked_negative_detectors.nxs
+              'MaskingDataFile':shared_folder+'van108467_new.nxs',         #Options:None;data_file_name
               'NormalizationDataFile':shared_folder+'van108467_new.nxs',   #Options:None;data_file_name
-              'SampleLogVariables':{'OmegaMotorName':None,'Temperature':T},   #Options:None;LogVariableName;number
-              # did ub correction for each temp (see notebook) but initial UB estimate is here: 
-              # 'UBSetup':{'a':4.449,'b':4.449,'c':4.449,'alpha':90,'beta':90,'gamma':90,'u':'-0.0562,-0.0797,1','v':'0.9809,1,0.1348'}, #by hand
+              'SampleLogVariables':{'OmegaMotorName':None,'Temperature':300.0},   #Options:None;LogVariableName;number
+              'UBSetup':{'a':4.449,'b':4.449,'c':4.449,'alpha':90,'beta':90,'gamma':90,'u':'-0.0562,-0.0797,1','v':'0.9809,1,0.1348'}, #by hand
                #Data reduction options
-              'Ei':None,                             #Options: None;Ei_somehow_determined
+              'Ei':70.,                             #Options: None;Ei_somehow_determined
               'T0': None,                           #Options: None;T0_determined_from_mantid
               'BadPulsesThreshold':None,            #Options: None;bg_pulses_threshold value
               'TimeIndepBackgroundWindow':None,     #Options: None;[Tib_min,Tib_max]
