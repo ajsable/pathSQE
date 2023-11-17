@@ -1,0 +1,1 @@
+{"shell_port": 41903, "iopub_port": 48013, "stdin_port": 56651, "control_port": 38407, "hb_port": 46441, "ip": "127.0.0.1", "key": "1b5d4ee8-cf8422cdbbe39cbbf9c4d309", "transport": "tcp", "signature_scheme": "hmac-sha256", "kernel_name": "mantid"}

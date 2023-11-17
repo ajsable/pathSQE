@@ -1,7 +1,7 @@
 import numpy as np
 import seekpath
 from seekpath.util import atoms_num_dict
-
+from mantid.simpleapi import *
 
 
 def simple_read_poscar(fname):
@@ -44,6 +44,7 @@ def calc_para_scores(qdim0):
     para_scores = np.zeros((3,1))
     for i in range(3):
         para_scores[i] = np.dot(unit_qdim0,hkl[i])
+    
     return para_scores
 
 
@@ -84,89 +85,40 @@ def find_qdim_1and2(qdim0, perp_to_path=False):
         para_scores[qdim1_ind] = 2
         qdim2_ind = np.argmin(para_scores)
         qdim2 = hkl[qdim2_ind]
+    
     return qdim1, qdim2
 
 
 
-def find_qbins_1and2(qdim0, qdim1, qdim2, pt1, pt2):
+def find_qbins(qdim0, qdim1, qdim2, pt1, pt2, BZ_offset):
     # we start with bins of 0 so hopefully can catch it if code isn't working
     qdim1_range = 0
     qdim2_range = 0 
 
-    # if any h,k,l of both points on the segment is not 0 but that same h,k,l of qdim0
-    # is 0, then we need some offset in bins for qdim 1/2. E.g. for X>M qdim0=[1,0,0] but
-    # both X ([0,0.5,0])and M ([0.5,0.5,0]) have nonzero k=0.5. Thus we need offset in bins 
-    # (in this case qdim1=[0,1,0] so nonzero offset in qbin1) 
-    qdim0_zeroInds = np.where(qdim0 == 0)[0]
-    if len(qdim0_zeroInds) == 0:
-        # the default qdim1 and 2 bin range about 0
-        qdim1_range = np.array([-0.15,0.15])
-        qdim2_range = np.array([-0.15,0.15]) 
-        return qdim1_range, qdim2_range
+    # find the new path endpoint coords given change of basis from cart to qdim0,1,2
+    CoB_mat = np.linalg.inv(np.array([qdim0,qdim1,qdim2]).T)
+    path_start_transf = CoB_mat @ (pt1 + BZ_offset)
+    path_end_transf = CoB_mat @ (pt2 + BZ_offset)
     
-    needed_offset = np.zeros((3,1))
-    nonzero_hkl = []
-    for ind in qdim0_zeroInds:
-        if (pt1[ind] != 0) and (pt2[ind] != 0):
-            needed_offset[ind]=pt1[ind]
-            nonzero_hkl.append(ind)
+    # fixed step size of 0.025 for qdim0 from path start to end
+    qdim0_range = np.array([path_start_transf[0], 0.025, path_end_transf[0]])
     
-    if not np.any(needed_offset):
-        #print("No offset is needed")
-        qdim1_range = np.array([-0.15,0.15])
-        qdim2_range = np.array([-0.15,0.15])
-        return qdim1_range, qdim2_range
-        
-    # MIGHT NOT WORK FOR KEEPING 2 CONST... NEED TO CHECK e.g. M>R
-    for ind in nonzero_hkl: # can prob get rid of this and just put nonzero_hkl wherever ind is
-        if qdim1[ind] != 0:
-            qdim_coeff_for_bin1 = needed_offset[ind] / qdim1[ind]
-            qdim1_range = np.array([0.7,1.3]) * qdim_coeff_for_bin1
-            qdim2_range = np.array([-0.15,0.15])
-        elif qdim2[ind] != 0:
-            qdim_coeff_for_bin2 = needed_offset[ind] / qdim2[ind]
-            qdim2_range = np.array([0.7,1.3]) * qdim_coeff_for_bin2
-            qdim1_range = np.array([-0.15,0.15])
-  
-    return qdim1_range, qdim2_range
-
-
-
-def find_qdim0_range(qdim0, qdim1, qdim2, qdim1_range, qdim2_range, pt1, pt2):
-    # calculating default QDimension0 range and bin size
-    # bounds chosen to cover first BZ and bin width is from most mantid examples
-    def_range = np.array([0,0.025,0.5])
-
-    if check_bin0_and_path_endpoints(qdim0, qdim1, qdim2, qdim1_range, qdim2_range, pt1, pt2, bin_range=def_range):
-        return def_range
-    else:
-        rev_range = def_range[::-1] 
-        rev_range[0] = -rev_range[0]
-        if check_bin0_and_path_endpoints(qdim0, qdim1, qdim2, qdim1_range, qdim2_range, pt1, pt2, bin_range=rev_range):
-            return rev_range
-        else:
-            return 0
-        
-    # scaling may not be necessary now since normalizing qdim0... later make width in A-1 and equal to instrument resolution
-    # current method of fixed fraction step of BZ will break for larger unit cells (smaller BZ in A-1)
-    #minDiffNonZero = np.min(np.absolute(qdim0[np.nonzero(qdim0)[0]]))
-    # scaler makes sure resolution stays normal with weird qdim0
-    #scaler = 1/minDiffNonZero
-    #qdim0_range = def_range*scaler
-    #return def_range
-
-
-
-def check_bin0_and_path_endpoints(qdim0, qdim1, qdim2, qdim1_range, qdim2_range, pt1, pt2, bin_range):
-    pt1_check = np.all(((bin_range[0]*qdim0 + np.mean(qdim1_range)*qdim1 + np.mean(qdim2_range)*qdim2) == pt1))
-    pt2_check = np.all(((bin_range[2]*qdim0 + np.mean(qdim1_range)*qdim1 + np.mean(qdim2_range)*qdim2) == pt2))
-    #print(pt1_check, pt2_check)
-    return pt1_check and pt2_check
-
-
-
-def choose_dims_and_bins(path_segment, point_coords, perp_to_path=False):
+    # might need to check bin/path endpoints...
+    # old check_bin0_and_path_endpoints function
     
+    # fixed integration range of +/-0.1 for qdim1 and qdim2
+    qdim1_range = np.array([path_start_transf[1]-0.1, path_end_transf[1]+0.1])
+    qdim2_range = np.array([path_start_transf[2]-0.1, path_end_transf[2]+0.1])
+    
+    # if qdim1 or qdim2 bin range gets too big raise error because code above may be wrong...
+    #if (np.absolute(qdim1_range[1]-qdim1_range[0]) > 0.2) or (np.absolute(qdim2_range[1]-qdim2_range[0]) > 0.2):
+    #    raise ValueError("Might be something weird with bins for qdim1 or dqim2")
+    
+    return qdim0_range, qdim1_range, qdim2_range
+
+
+
+def choose_dims_and_bins(path_segment, point_coords, perp_to_path=False, BZ_offset=np.array([0,0,0])):
     pt1 = np.array(point_coords[path_segment[0]])
     pt2 = np.array(point_coords[path_segment[1]])
     diff = pt2 - pt1
@@ -176,10 +128,7 @@ def choose_dims_and_bins(path_segment, point_coords, perp_to_path=False):
 
     # determine the directions of qdim1 and qdim2
     qdim1, qdim2 = find_qdim_1and2(qdim0,perp_to_path)
-    qdim1_range, qdim2_range = find_qbins_1and2(qdim0, qdim1, qdim2, pt1, pt2)
-
-    # calculating default QDimension0  bin range and bin size
-    qdim0_range = find_qdim0_range(qdim0, qdim1, qdim2, qdim1_range, qdim2_range, pt1, pt2)
+    qdim0_range, qdim1_range, qdim2_range = find_qbins(qdim0, qdim1, qdim2, pt1, pt2, BZ_offset)
 
     # return list contains various types (mainly np arrays) that are converted to properly formatted strings
     # as a part of the slice description generation process
@@ -194,11 +143,16 @@ def conv_to_desc_string(input_item):
     for item in input_item:
         string = string + str(item) +','
     string = string[:-1]
+    
     return string
 
 
 
-def make_slice_desc(q_dims_and_bins, path_seg):
+def make_slice_desc(q_dims_and_bins, path_seg, point_coords):
+    pt1 = np.array(point_coords[path_seg[0]])
+    pt2 = np.array(point_coords[path_seg[1]])
+    diff = pt2 - pt1
+    
     # slice description with desired dims and bins and unique name
     slice_desc={'QDimension0':conv_to_desc_string(q_dims_and_bins[0]),
                 'QDimension1':conv_to_desc_string(q_dims_and_bins[1]),
@@ -212,25 +166,88 @@ def make_slice_desc(q_dims_and_bins, path_seg):
                 'Dimension3Name':'DeltaE',
                 'Dimension3Binning':'-35.5,1,66.5',
                 'SymmetryOperations':'x,y,z',
-                'Name':'slice_'+path_seg[0]+'_to_'+path_seg[1]}
+                'Name':'pathSQE_'+path_seg[0]+'_to_'+path_seg[1],
+                'qdim0_range':q_dims_and_bins[3],
+                'seg_start_name':path_seg[0],
+                'seg_end_name':path_seg[1],
+                'inv_angstrom_ratio':np.linalg.norm(diff)/0.5}
 
     return slice_desc
 
 
 
-def make_all_slice_descs(path_to_poscar):
-    poscar = simple_read_poscar('files_for_nb/POSCAR')
+
+def make_all_slice_descs(path_to_poscar, BZ_offset=np.array([0,0,0])):
+    poscar = simple_read_poscar(path_to_poscar)
     path = seekpath.get_path(structure=poscar)
 
     dsl=[]
     # APPEARS IT MAY NOT BE ABLE TO HANDLE DISCONTINUITIES IN PATH YET (e.g. R>X then R>M (path[5]))
     for i in range(5): #range(len(path['path'])):
-        #print("on path seg {}".format(i))
         path_seg = path['path'][i]
-        #print(path_seg)
-        q_dims_and_bins = choose_dims_and_bins(path_seg,path['point_coords'],perp_to_path=True)
-        slice_desc = make_slice_desc(q_dims_and_bins, path_seg)
+        q_dims_and_bins = choose_dims_and_bins(path_segment=path_seg, point_coords=path['point_coords'], perp_to_path=True, BZ_offset=BZ_offset)    
+        slice_desc = make_slice_desc(q_dims_and_bins, path_seg, path['point_coords'])
         dsl.append(slice_desc)
-    
+        
     return dsl
+
+
+
+def plot_along_path(dsl,vmi,vma,cma='jet'):
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import SymLogNorm
+    from matplotlib.gridspec import GridSpec
+    from mantid import plots
     
+    plt.rcParams['figure.dpi'] = 300
+    plt.rcParams['savefig.dpi'] = 300
+    plt.rcParams.update({'font.size': 28})
+
+    fig=plt.figure(figsize=(12,5))
+
+    colormesh_pars={}
+    colormesh_pars['norm']=SymLogNorm(linthresh=vmi,vmin=vmi,vmax=vma)#(linthresh=9e-6,vmin=9e-6,vmax=2e-3)
+    colormesh_pars['cmap']=cma
+    
+    num_segments = len(dsl)
+    
+    ratios = []
+    for i in range(num_segments):
+        ratios.append(dsl[i]['inv_angstrom_ratio'])
+    
+    gs = GridSpec(1, num_segments,width_ratios=ratios,wspace=0)
+
+    for i in range(num_segments):
+        x_start = dsl[i]['qdim0_range'][0]
+        x_end = dsl[i]['qdim0_range'][2]
+        
+        if i == 0:
+            ax1 = plt.subplot(gs[i],projection='mantid')
+            ax1.pcolormesh(mtd[dsl[i]['Name']], **colormesh_pars)
+            ax1.set_ylabel('E (meV)')
+            ax1.set_xlabel('')
+            ax1.set_ylim(0.,70.)
+            ax1.set_xticks([x_start, x_end])
+            ax1.set_xticklabels(['{}'.format(dsl[i]['seg_start_name']),''])
+            ax1.tick_params(direction='in')
+        elif i == num_segments-1:
+            axL = plt.subplot(gs[i],sharey=ax1,projection='mantid')
+            cb = axL.pcolormesh(mtd[dsl[i]['Name']], **colormesh_pars)
+            axL.get_yaxis().set_visible(False)
+            axL.set_xlabel('')
+            axL.set_xticks([x_start, x_end])
+            axL.set_xticklabels(['${}$'.format(dsl[i]['seg_start_name']), '${}$'.format(dsl[i]['seg_end_name'])])
+            axL.tick_params(direction='in')
+        else:
+            ax = plt.subplot(gs[i],sharey=ax1,projection='mantid')
+            ax.pcolormesh(mtd[dsl[i]['Name']], **colormesh_pars)
+            ax.get_yaxis().set_visible(False)
+            ax.set_xlabel('')
+            ax.set_xticks([x_start, x_end])
+            ax.set_xticklabels(['{}'.format(dsl[i]['seg_start_name']),''])
+            ax.tick_params(direction='in')
+
+    fig.colorbar(cb)
+    plt.rcParams.update({'font.size': 10})
+
+    return fig
