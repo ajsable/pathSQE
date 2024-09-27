@@ -68,7 +68,7 @@ class Tee(object):
 output_file_path = os.path.join(pathSQE_params['saveDir'], 'output.txt')
 
 # Open the file in write mode
-output_file = open(output_file_path, 'w')
+output_file = open(output_file_path, 'a')
 
 # Redirect stdout to both the terminal and the file
 sys.stdout = Tee(sys.stdout, output_file)
@@ -89,7 +89,7 @@ reduce_data_to_MDE(mde_data)
 if pathSQE_params['fold_one_zone']:
     BZ_list = [pathSQE_params['BZ_offset']]
 elif pathSQE_params['fold_all_zones']:    
-    BZ_list = pathSQE_functions.gen_BZ_coverage_list_threshold(mde_data, pathSQE_params['H_bound'], pathSQE_params['K_bound'], pathSQE_params['L_bound'], pathSQE_params['E_bound'])
+    BZ_list_init = pathSQE_functions.gen_BZ_coverage_list_threshold(mde_data, pathSQE_params['H_bound'], pathSQE_params['K_bound'], pathSQE_params['L_bound'], pathSQE_params['E_bound'])
     
     # Problematic BZ arrays to remove and exclude from folding
     #rows_to_remove = [np.array([0, 0, 2]), np.array([1, 1, 1])]
@@ -98,8 +98,12 @@ elif pathSQE_params['fold_all_zones']:
     # Remove specified rows
     #BZ_list = BZ_list[~mask.any(axis=1)]
 
-print('\nFolding {} BZs'.format(len(BZ_list)))
-print('\nBZs: ', BZ_list)
+print('\nFolding {} BZs'.format(len(BZ_list_init)))
+print('\nBZs: ', BZ_list_init)
+
+print("\nChecking for prior folding progress")
+BZ_list = pathSQE_functions.resume_analysis(BZ_list_init, pathSQE_params['saveDir']+'BZ_Reports/')
+
 
 last_BZ_pathSeg_bounds = []
 last_BZ_fold_dsl = []
@@ -177,11 +181,11 @@ for B, BZ_offset in enumerate(BZ_list):
 
 ############### INTER-BZ folding over all BZ specified ###############
 if pathSQE_params['fold_all_zones']: 
-    print('\nCombining all {} BZ'.format(len(BZ_list)))
+    print('\nCombining all {} BZ'.format(len(BZ_list_init)))
     data_and_norm_dir = pathSQE_params['saveDir']+'nxs_files/DataAndNorms/'
     all_files = os.listdir(data_and_norm_dir)
 
-    last_BZ = BZ_list[-1]
+    last_BZ = BZ_list_init[-1]
     last_BZ_files = [filename for filename in all_files if str(last_BZ) in filename]
     BZ_list_files = [filename for filename in all_files if filename not in last_BZ_files]
 
@@ -242,7 +246,7 @@ if pathSQE_params['fold_all_zones']:
     fig2 = pathSQE_functions.plot_SED_along_path_foldedBZ(foldedSegNames=seg_names, dsl_fold=last_BZ_fold_dsl, pathSQE_params=pathSQE_params)
     fig2.savefig(pathSQE_params['saveDir']+'folded_SED_path_plot.png')
 
-print('\nFolded {} BZ in {} seconds'.format(len(BZ_list), time.time()-start_time))
+print('\nFolded {} BZ in {} seconds'.format(len(BZ_list_init), time.time()-start_time))
 
 # Remember to close the file when done
 output_file.close()

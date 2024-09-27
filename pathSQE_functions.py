@@ -348,7 +348,7 @@ def gen_BZ_coverage_list_threshold(mde_data, H_bound, K_bound, L_bound, E_bound)
             for l in range(len(BZ_L_vec)):
                 BZ_data = data_BZcovThreshold[2*h:2*h+2, 2*k:2*k+2, 2*l:2*l+2, :]
                 frac_nonNaN_nonZero = np.sum(np.logical_and(~np.isnan(BZ_data), BZ_data != 0)) / np.size(BZ_data)
-                if frac_nonNaN_nonZero > 0.5:
+                if frac_nonNaN_nonZero >= 0.75:
                     BZ_list.append(np.array([BZ_H_vec[h], BZ_K_vec[k], BZ_L_vec[l]]))
     BZ_list = np.array(BZ_list) 
 
@@ -398,6 +398,46 @@ def gen_BZ_list_from_BCC_BraggPts():
 
 
     return bragg_pt_conv_bcc
+
+
+
+import os
+import numpy as np
+
+def get_existing_BZ(output_folder_path):
+    """Retrieve BZ arrays that already have corresponding PDF reports."""
+    existing_BZ = []
+    
+    # List all files in the output folder
+    for filename in os.listdir(output_folder_path):
+        if filename.startswith("BZ_Report_") and filename.endswith(".pdf"):
+            # Extract the BZ part from the filename (e.g., "BZ_Report_[ 0  0 -6].pdf")
+            BZ_str = filename[len("BZ_Report_") + 1:-len(".pdf")]  # Extract the array part
+            # Convert the string to an actual array, taking care of spaces
+            BZ_array = np.fromstring(BZ_str.strip('[]'), sep=' ', dtype=int)
+            existing_BZ.append(BZ_array)
+    
+    # Convert list of arrays into Nx3 array
+    return np.array(existing_BZ)
+
+def resume_analysis(BZ_list, output_folder_path):
+    """Resume analysis by removing already processed BZ arrays from BZ_list."""
+    # Get the list of existing BZ arrays from the output folder
+    existing_BZ = get_existing_BZ(output_folder_path)
+    
+    # Check for arrays already processed and remove them from BZ_list
+    mask = np.array([not any(np.array_equal(bz, existing_bz) for existing_bz in existing_BZ) for bz in BZ_list])
+    new_BZ_list = BZ_list[mask]
+    
+    # Print details of removed arrays
+    removed_BZ = BZ_list[~mask]
+    print(f"{len(removed_BZ)} BZ arrays removed:")
+    print(removed_BZ)
+    
+    # Return the updated BZ_list
+    return new_BZ_list
+
+
 
 
 
@@ -453,7 +493,7 @@ def evaluate_slice_quality(slice_name, filters, path_seg):
             filter_evals.append(False)    
 
 
-    # filter to get rid of M point artifacts
+    # filter to get rid of M point artifacts in 40meV FeSi dataset (IPTS-5307)
     if 'M_bragg_tails' in filters: 
         if path_seg==('M','Gamma'):
             slice_data = mtd[slice_name].getSignalArray()
@@ -477,7 +517,52 @@ def evaluate_slice_quality(slice_name, filters, path_seg):
                 filter_evals.append(True)
         else:
             filter_evals.append(True)
-           
+
+
+    # filter to get rid of M point artifacts in 70meV FeSi dataset (IPTS-21211)
+    if 'M_bragg_tails_70meV' in filters: 
+        if path_seg==('M','Gamma'):
+            slice_data = mtd[slice_name].getSignalArray()
+            slice_data = np.squeeze(slice_data)
+            
+            # mask where bad signal is
+            shape = slice_data.shape
+            feat_mask = np.zeros(shape)
+            feat_mask[:10,10:17] = 1  # E 5.5-9 ish and q 0-0.2 on M to Gamma
+            
+            # mask data based on percentile
+            E_ind_high = int(np.ceil(4/0.5))  
+            slice = slice_data[:, E_ind_high:]
+            mask = ~np.isnan(slice) & (slice != 0)
+            segMax = np.percentile(slice[mask],95)
+            perc_mask = slice_data >= segMax
+                    
+            if np.sum(feat_mask*perc_mask)>5:
+                filter_evals.append(False)
+            else:
+                filter_evals.append(True)
+        elif path_seg==('X','M'):
+            slice_data = mtd[slice_name].getSignalArray()
+            slice_data = np.squeeze(slice_data)
+            
+            # mask where bad signal is
+            shape = slice_data.shape
+            feat_mask = np.zeros(shape)
+            feat_mask[12:,9:19] = 1  # E 5-10 ish and q 0.3-0.5 on X to M
+            
+            # mask data based on percentile
+            E_ind_high = int(np.ceil(4/0.5))  
+            slice = slice_data[:, E_ind_high:]
+            mask = ~np.isnan(slice) & (slice != 0)
+            segMax = np.percentile(slice[mask],95)
+            perc_mask = slice_data >= segMax
+                    
+            if np.sum(feat_mask*perc_mask)>5:
+                filter_evals.append(False)
+            else:
+                filter_evals.append(True)
+        else:
+            filter_evals.append(True)           
 
     
     # more filters...

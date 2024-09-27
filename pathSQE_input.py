@@ -19,45 +19,45 @@ import numpy as np
 def define_pathSQE_params(**kwargs):
     pathSQE_params={
     # a few required inputs
-    'sample':'SnGeTe',
-    'spacegroup':'Fm-3m', # don't worry about spaces - code can theoretically figure it out 
-    'Temp':300,
-    'Ei':40, 
+    'sample':'FeSi',
+    'spacegroup':'P213', # don't worry about spaces - code can theoretically figure it out 
+    'Temp':650,
+    'Ei':70, 
     'use_seeKpath_path':False, # current only works with False
     'which_seeKpath_pathSegments':None, # seeKpath segments to use
-    'user_defined_path':{'path':[ ('X', 'Gamma'), ('Gamma', 'W'), ('W', 'L'), ('L', 'Gamma'), ('Gamma', 'K') ], 
-                         # defined in terms of the conv cell (not primitive that pathSQE defaults to)
-                         # original prim point coords: 'GAMMA': [0.0, 0.0, 0.0], 'X': [0.5, 0.0, 0.5], 'L': [0.5, 0.5, 0.5], 'W': [0.5, 0.25, 0.75], 'K': [0.375, 0.375, 0.75], 'U': [0.625, 0.25, 0.625]
-                         'point_coords':{ 'X': [0.0, 1.0, 0.0], 'Gamma': [0.0, 0.0, 0.0], 'W': [0.5, 1.0, 0.0],'L': [0.5, 0.5, 0.5],'Gamma': [0.0, 0.0, 0.0],'K': [0.75, 0.75, 0.0]}},
+    'user_defined_path':{'path':[ ('Gamma','X'), ('X','M'), ('M','Gamma'), ('Gamma','R'), ('R','X') ], 
+                         # defined in terms of the basis being used in mantid (most often conventional basis, not primitive basis)
+                         # original prim point coords: 'GAMMA': [0.0, 0.0, 0.0], ...
+                         'point_coords':{'Gamma': [0.0, 0.0, 0.0], 'X': [0.0, 0.5, 0.0], 'M': [0.5, 0.5, 0.0], 'R': [0.5, 0.5, 0.5] }},
     
     # bins and integration ranges
     'qdim0_step_size':0.025, # fraction of qdim0
-    'E_bins':'0,0.25,17', # min, step, max
-    'qdim1_int_range':0.1, # fraction of qdim1
-    'qdim2_int_range':0.1, # fraction of qdim2
+    'E_bins':'0,0.5,70', # min, step, max
+    'qdim1_int_range':0.05, # fraction of qdim1
+    'qdim2_int_range':0.05, # fraction of qdim2
     
     # saving outputs
     'BZ_report':True,
-    'saveDir':'/SNS/CNCS/IPTS-25269/shared/Aiden/comprehensive/BZfold_pathSQE/300K_thickInt_exclude2BZ_fullPath/',
+    'saveDir':'/SNS/ARCS/IPTS-21211/shared/Aiden/comprehensive/BZfold_pathSQE/650K_70meV_avoidArtifacts/',
     
     # parameters relevant to plotting
-    'vmin':2e-3, # 
-    'vmax':2e-2, # 
+    #'vmin':1e-5, # 
+    #'vmax':7e-4, # 
     'cmap':'viridis',
     
     # for automatic slice quality evaluation 
-    'filters':[], # under development
+    'filters':['M_bragg_tails_70meV'], # under development
     
     # folding within 1 BZ based on point group (intra-BZ folding)
     'fold_one_zone':False,
     'BZ_offset':np.array([3,3,1]),
     
     # folding multiple BZ's together (inter-BZ folding - each BZ is folded separately then all are combined)
-    'fold_all_zones':True, # temp hard code to only do BZ_list = 3,3,1 and 5,1,1
-    'H_bound':[-2,6], # range of H to check for data
-    'K_bound':[-2,6], #   " "    K         " "
-    'L_bound':[-2,6], #   " "    L         " " 
-    'E_bound':[0,17]}  #   " "    E         " "
+    'fold_all_zones':True, 
+    'H_bound':[-10,10], # range of H to check for data
+    'K_bound':[-10,10], #   " "    K         " "
+    'L_bound':[-10,10], #   " "    L         " " 
+    'E_bound':[15,60]}  #   " "    E         " "
 
     return pathSQE_params
 
