@@ -6,25 +6,24 @@ import numpy as np
 # Authors: A. Savici, I. Zaliznyak, March 2019.
 ########################################################################################################
 def define_data_set(**kwargs):
-    shared_folder='/SNS/ARCS/IPTS-21211/shared/Dipanshu/'
-    raw_data_folder='/SNS/ARCS/IPTS-21211/nexus/'
-    mde_folder='/SNS/ARCS/IPTS-21211/shared/Aiden/merged_mde/'
+    shared_folder='/SNS/CNCS/IPTS-31965/shared/autoreduce/'
+    raw_data_folder='/SNS/CNCS/IPTS-31965/nexus/'
+    mde_folder='/SNS/CNCS/IPTS-31965/shared/chengjie/merged_mde/'
 
-    T = 650
-    E = 70
-    
-    data_set_list = []
-    data_set={'Runs':list(range(28367,28532+1)), #not accurate since mde are already made
+    T = 2
+    E = 20
+
+    data_set_list=[]
+    data_set={'Runs':None, 
               'BackgroundRuns':None,   #range(297325,297337)Options: None;list of runs that are added together
               'RawDataFolder':raw_data_folder,      #Options:raw_data_folder string
               'MdeFolder':mde_folder,               #Options:mde_folder string
-              'MdeName':'FeSi_{}K_{}meV_UBcorrected'.format(T,E),   #Options:mde_name string
-              'BackgroundMdeName':'',      #Options:None;bg_mde_name string
-              'MaskingDataFile':shared_folder+'van108467_new.nxs',         #Options:None;data_file_name; van_449014_unmasked_negative_detectors.nxs
-              'NormalizationDataFile':shared_folder+'van108467_new.nxs',   #Options:None;data_file_name
-              'SampleLogVariables':{'OmegaMotorName':None,'Temperature':T},   #Options:None;LogVariableName;number
-              # did ub correction for each temp (see notebook) but initial UB estimate is here: 
-              # 'UBSetup':{'a':4.449,'b':4.449,'c':4.449,'alpha':90,'beta':90,'gamma':90,'u':'-0.0562,-0.0797,1','v':'0.9809,1,0.1348'}, #by hand
+              'MdeName':'Bi_{}K_{}meV'.format(T,E), 
+              'BackgroundMdeName':None,      #Options:None;bg_mde_name string
+              'MaskingDataFile':shared_folder+'van_449014.nxs',         #Options:None;data_file_name; van_449014_unmasked_negative_detectors.nxs
+              'NormalizationDataFile':shared_folder+'van_449014.nxs',   #Options:None;data_file_name
+              'SampleLogVariables':{'OmegaMotorName':None,'Temperature':T},   #Options:None;LogVariableName;number FROM CHENGJIE
+              'UBSetup':{'a':4.54,'b':4.54,'c':11.862,'alpha':90,'beta':90,'gamma':120,'u':'-1.14875,-0.12355,11.27797','v':'3.70658,0.06694,3.65633'}, #by hand FROM CHENGJIE
                #Data reduction options
               'Ei':None,                             #Options: None;Ei_somehow_determined
               'T0': None,                           #Options: None;T0_determined_from_mantid

@@ -89,7 +89,11 @@ reduce_data_to_MDE(mde_data)
 if pathSQE_params['fold_one_zone']:
     BZ_list = [pathSQE_params['BZ_offset']]
 elif pathSQE_params['fold_all_zones']:    
-    BZ_list_init = pathSQE_functions.gen_BZ_coverage_list_threshold(mde_data, pathSQE_params['H_bound'], pathSQE_params['K_bound'], pathSQE_params['L_bound'], pathSQE_params['E_bound'])
+    BZ_list_init = pathSQE_functions.gen_BZ_list_Bi_Hexagonal()
+    #BZ_list_init = np.array([[1,0,4],[2,0,-1],[1,0,-5]])
+    print('bi hex func ', BZ_list_init.shape)
+    #BZ_list_init = pathSQE_functions.gen_BZ_list_covThreshold_anyBasis(mde_data, pathSQE_params)
+    #print('any basis cov thresh func ', BZ_list_init.shape)
     
     # Problematic BZ arrays to remove and exclude from folding
     #rows_to_remove = [np.array([0, 0, 2]), np.array([1, 1, 1])]
@@ -119,13 +123,13 @@ for B, BZ_offset in enumerate(BZ_list):
         pt1_init = np.array(path['point_coords'][path_seg[0]])
         pt2_init = np.array(path['point_coords'][path_seg[1]])
 
-        pt1_array, pt2_array = pathSQE_functions.generate_unique_paths(mtd_spacegroup, path_seg, pt1_init, pt2_init)
+        pt1_array, pt2_array = pathSQE_functions.generate_unique_paths(mtd_spacegroup, path_seg, pt1_init, pt2_init, pathSQE_params['prim2mantid_transMatrix'])
 
         all_slice_names_for_pathSeg = []
         slice_evals_for_pathSeg = []
         good_slice_index = None
         for j in range(pt1_array.shape[0]):
-            q_dims_and_bins = pathSQE_functions.choose_dims_and_bins(pathSQE_params=pathSQE_params, point1=pt1_array[j], point2=pt2_array[j], perp_to_path=True, BZ_offset=BZ_offset)
+            q_dims_and_bins = pathSQE_functions.choose_dims_and_bins(pathSQE_params=pathSQE_params, point1=pt1_array[j], point2=pt2_array[j], BZ_offset=BZ_offset)
             slice_desc = pathSQE_functions.make_slice_desc(pathSQE_params, q_dims_and_bins, pt1_array[j], pt2_array[j], path_seg)
             all_slice_names_for_pathSeg.append(slice_desc['Name'])
             
@@ -230,7 +234,10 @@ if pathSQE_params['fold_all_zones']:
     ind_aboveElasticLine = int(np.ceil(3/step))
     pathMax = -1
     pathMin = 1e4
-    for seg in seg_names:              
+    
+    folded_array = []
+    for seg in seg_names:
+    	folded_array.append(np.squeeze(mtd[seg].getSignalArray()))              
         slice = mtd[seg].getSignalArray()[:,0,0,ind_aboveElasticLine:]
         # Mask NaN and zero values
         mask = ~np.isnan(slice) & (slice != 0)
@@ -240,7 +247,8 @@ if pathSQE_params['fold_all_zones']:
             pathMax = segMax
         if segMin < pathMin:
             pathMin = segMin
-
+            
+    np.save(pathSQE_params['saveDir']+'folded_path_plot.npy', np.vstack(folded_array))
     fig = pathSQE_functions.plot_along_path_foldedBZ(foldedSegNames=seg_names, dsl_fold=last_BZ_fold_dsl, Ei=pathSQE_params['Ei'], vmi=pathMin, vma=pathMax, cma=pathSQE_params['cmap'])
     fig.savefig(pathSQE_params['saveDir']+'folded_path_plot.png')
     fig2 = pathSQE_functions.plot_SED_along_path_foldedBZ(foldedSegNames=seg_names, dsl_fold=last_BZ_fold_dsl, pathSQE_params=pathSQE_params)

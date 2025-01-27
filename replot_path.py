@@ -24,13 +24,16 @@ def IqE_to_SED(SED_ws,T,Ebins):
 
 
 
-outputs_folder = '/SNS/CNCS/IPTS-25269/shared/Aiden/comprehensive/BZfold_pathSQE/300K_thickInt_exclude2BZ_fullPath/' 
+outputs_folder = '/SNS/CNCS/IPTS-31965/shared/Aiden/comprehensive/BZfold_pathSQE/300K_20meV_initial/'
 
-user_defined_path = {'path':[ ('X', 'Gamma'), ('Gamma', 'W'), ('W', 'L'), ('L', 'Gamma'), ('Gamma', 'K') ],
-                     'point_coords':{ 'X': [0.0, 1.0, 0.0], 'Gamma': [0.0, 0.0, 0.0], 'W': [0.5, 1.0, 0.0],'L': [0.5, 0.5, 0.5],'Gamma': [0.0, 0.0, 0.0],'K': [0.75, 0.75, 0.0]}}
+prim2mantid_transMatrix = np.linalg.inv(np.array([[2/3, -1/3, -1/3], [1/3, 1/3, -2/3], [1/3, 1/3, 1/3]])) # bilbao space group R-3m (166) to hexagon>
+
+user_defined_path = {'path':[ ('Gamma','T'), ('T','X'), ('X','L'), ('L','Gamma'), ('Gamma','X') ], 
+                         # defined in terms of the primitive rhombohedral basis (i.e. not the basis being used in mantid which is often the conventional basis)
+                         'point_coords':{'Gamma': [0.0, 0.0, 0.0], 'T': [0.5, 0.5, 0.5], 'X': [0 , 0.5, 0.5], 'L': [0, 0.5, 0] }}
 
 T = 300
-Ebins = '0,0.25,17'
+Ebins = '-15,0.2,15'
 
 
 
@@ -48,15 +51,24 @@ for seg in user_defined_path['path']:
     LoadMD(Filename=outputs_folder+'{}_folded_SEDnew.nxs'.format(name), OutputWorkspace='{}_SED'.format(name), LoadHistory=False)
     foldedSEDNames.append('{}_SED'.format(name))
     
-    pt1 = np.array(user_defined_path['point_coords'][seg[0]])
-    pt2 = np.array(user_defined_path['point_coords'][seg[1]])
-    ratios.append(np.linalg.norm(pt2-pt1))
+    pt1_prim = np.array(user_defined_path['point_coords'][seg[0]])
+    pt2_prim = np.array(user_defined_path['point_coords'][seg[1]])
+    norm_prim = np.linalg.norm(pt2_prim-pt1_prim)
+
+    pt1_conv = prim2mantid_transMatrix @ pt1_prim
+    pt2_conv = prim2mantid_transMatrix @ pt2_prim
+    norm_conv = np.linalg.norm(pt2_conv-pt1_conv)
+
+    ratios.append(norm_prim)
 
 print(foldedSegNames)
 
 print(foldedSEDNames)
 
+print('scaling ratios ', ratios)
 
+lens = [0, 0.126454, 0.260268, 0.394082, 0.527896, 0.680331]
+ratios = [lens[i+1]-lens[i] for i in range(len(lens)-1)]
 
 
 plt.rcParams['figure.dpi'] = 300
@@ -64,7 +76,7 @@ plt.rcParams['savefig.dpi'] = 300
 plt.rcParams.update({'font.size': 28})
 
 colormesh_pars={}
-colormesh_pars['norm']=SymLogNorm(linthresh=5e-4,vmin=5e-4,vmax=4e-2)
+colormesh_pars['norm']=SymLogNorm(linthresh=5e-3,vmin=5e-3,vmax=2e-1) # data (linthresh=1e-3,vmin=1e-3,vmax=2e-1)
 colormesh_pars['cmap']='viridis'
 
 
@@ -72,32 +84,31 @@ fig, axes = plt.subplots(1, len(ratios), gridspec_kw={'width_ratios': ratios}, f
 
 
 ax1 = axes[0]
-ax1.pcolormesh(mtd[foldedSegNames[0]], **colormesh_pars)
+ax1.pcolormesh(mtd[foldedSEDNames[0]], **colormesh_pars)
 ax1.set_ylabel('E (meV)')
 ax1.set_xlabel('')
-ax1.set_ylim(0.,17)
 ax1.tick_params(direction='in')
 
 ax2 = axes[1]
-ax2.pcolormesh(mtd[foldedSegNames[1]], **colormesh_pars)
+ax2.pcolormesh(mtd[foldedSEDNames[1]], **colormesh_pars)
 ax2.set_xlabel('')
 ax2.get_yaxis().set_visible(False)
 ax2.tick_params(direction='in')
 
 ax3 = axes[2]
-ax3.pcolormesh(mtd[foldedSegNames[2]], **colormesh_pars)
+ax3.pcolormesh(mtd[foldedSEDNames[2]], **colormesh_pars)
 ax3.set_xlabel('')
 ax3.get_yaxis().set_visible(False)
 ax3.tick_params(direction='in')
 
 ax4 = axes[3]
-ax4.pcolormesh(mtd[foldedSegNames[3]], **colormesh_pars)
+ax4.pcolormesh(mtd[foldedSEDNames[3]], **colormesh_pars)
 ax4.set_xlabel('')
 ax4.get_yaxis().set_visible(False)
 ax4.tick_params(direction='in')
 
 axL = axes[-1]
-mappable = axL.pcolormesh(mtd[foldedSegNames[-1]], **colormesh_pars)
+mappable = axL.pcolormesh(mtd[foldedSEDNames[-1]], **colormesh_pars)
 axL.get_yaxis().set_visible(False)
 axL.set_xlabel('')
 axL.tick_params(direction='in')
@@ -109,12 +120,12 @@ print(x0)
 
 #ax1.set_xlim([x0[0], x0[0]])
 ax1.set_xticks([x0[0][0], x0[0][1]])
-ax1.set_xticklabels([user_defined_path['path'][0][0],''])
+ax1.set_xticklabels([r'$\Gamma$',''])
 
 #ax2.set_xlim([x0[1], x0[1]])
 ax2.set_xticks([x0[1][0], x0[1][1]])
 #ax2.set_xticklabels([user_defined_path['path'][1][0],''])
-ax2.set_xticklabels([r'$\Gamma$',''])
+ax2.set_xticklabels([user_defined_path['path'][1][0],''])
 
 #ax3.set_xlim([x0[2], x0[2]])
 ax3.set_xticks([x0[2][0], x0[2][1]])
@@ -129,7 +140,7 @@ axL.set_xticks([x0[4][0], x0[4][1]])
 #axL.set_xticklabels([user_defined_path['path'][4][0], user_defined_path['path'][4][1]])
 axL.set_xticklabels([r'$\Gamma$', user_defined_path['path'][4][1]])
 
-fig.suptitle('Folded SnGeTe at 300 K (exclude 2 BZ)',  fontsize=22)
+fig.suptitle('Folded Bi 300 K, 20 meV',  fontsize=22)
 
 plt.subplots_adjust(wspace=0, hspace=0)
 
@@ -139,4 +150,4 @@ cbar = fig.colorbar(mappable,orientation='vertical',cax=cb_ax)
 cbar.ax.tick_params(labelsize=15)
 
 plt.rcParams.update({'font.size': 10})
-fig.savefig(outputs_folder+'replotPath_300Kexclude2_17meV.png')
+fig.savefig(outputs_folder+'Bi_300K_20meV_SED.png')

@@ -6,7 +6,7 @@ from PyPDF2 import PdfReader, PdfWriter
 import seekpath
 from seekpath.util import atoms_num_dict
 from mantid.simpleapi import *
-from mantid.geometry import SpaceGroupFactory
+from mantid.geometry import SpaceGroupFactory, PointGroupFactory
 
 ########################################################################################################
 # All necessary functions for running pathSQE
@@ -63,55 +63,31 @@ def simple_read_poscar(fname):
     return (cell, positions, atomic_numbers)
 
 
-
-def calc_para_scores(qdim0):
+def find_qdim_1and2(qdim0):
     hkl = np.array([[1,0,0],[0,1,0],[0,0,1]])
-    unit_qdim0 = qdim0 / np.linalg.norm(qdim0)
-    # calculate degree of parallelism btw qdim0 and hkl vecs
-    para_scores = np.zeros((3,1))
-    for i in range(3):
-        para_scores[i] = np.dot(unit_qdim0,hkl[i])
     
-    return para_scores
-
-
-
-def find_qdim_1and2(qdim0, perp_to_path=True):
-    hkl = np.array([[1,0,0],[0,1,0],[0,0,1]])
     # if perp to path method is wanted
-    if perp_to_path:
-        if np.count_nonzero(qdim0) == 1:
-            # if diff=dim0 is 1D, then dim1 and dim2 will also just be 1D h,k,or l
-            qdim0_dir = np.nonzero(qdim0)[0]
-            hkl_avail = np.delete(hkl, qdim0_dir, axis=0)
-            qdim1 = hkl_avail[0]
-            qdim2 = hkl_avail[1]
-        elif (np.count_nonzero(qdim0) == 2) or (np.count_nonzero(qdim0) == 3):
-            nzeroInds = np.nonzero(qdim0)[0]
-            qdim1 = qdim0.copy()
-            # swap h and k and make one negative to give perpen direction within the horizontal plane
-            # If qdim0 is 3D, need to set l to 0 so that it is perpen and in the horizontal plane 
-            qdim1[nzeroInds[0]], qdim1[nzeroInds[1]] = qdim0[nzeroInds[1]], -qdim0[nzeroInds[0]]
-            if np.count_nonzero(qdim0) == 3:
-                qdim1[2] = 0 
-            # qdim2 is simply the direction perpen to qdim0 and qdim1
-            qdim2 = np.cross(qdim0, qdim1)
-            qdim2 = qdim2 / np.max(np.absolute(qdim2))
-            # MAYBE DON'T (messing w bin offset) - normalize the two qdims so that mag of each is 1 A-1 and can easily do bins +/- 0.15
-            #qdim1 = qdim1 / np.linalg.norm(qdim1)
-            #qdim2 = qdim2 / np.linalg.norm(qdim2)
-        else:
-            raise ValueError("The selected symmetry path contains a segment which is greater than 3 dimensions") 
-    else:
-        # if perp to path isn't wanted, do it based on which 2 hkl are most perp (i.e. least para) to dim0
-        para_scores = calc_para_scores(qdim0)
-        # want two directions most perpen to qdim0 to be qdim1 and qdim2
-        qdim1_ind = np.argmin(para_scores)
-        qdim1 = hkl[qdim1_ind]
-        # set qdim1 as highest so it won't be chosen for qdim2
-        para_scores[qdim1_ind] = 2
-        qdim2_ind = np.argmin(para_scores)
-        qdim2 = hkl[qdim2_ind]
+    if np.count_nonzero(qdim0) == 1:
+        # if diff=dim0 is 1D, then dim1 and dim2 will also just be 1D h,k,or l
+        qdim0_dir = np.nonzero(qdim0)[0]
+        hkl_avail = np.delete(hkl, qdim0_dir, axis=0)
+        qdim1 = hkl_avail[0]
+        qdim2 = hkl_avail[1]
+    elif (np.count_nonzero(qdim0) == 2) or (np.count_nonzero(qdim0) == 3):
+        nzeroInds = np.nonzero(qdim0)[0]
+        qdim1 = qdim0.copy()
+        # swap h and k and make one negative to give perpen direction within the horizontal plane
+        # If qdim0 is 3D, need to set l to 0 so that it is perpen and in the horizontal plane 
+        qdim1[nzeroInds[0]], qdim1[nzeroInds[1]] = qdim0[nzeroInds[1]], -qdim0[nzeroInds[0]]
+        if np.count_nonzero(qdim0) == 3:
+            qdim1[2] = 0 
+        # qdim2 is simply the direction perpen to qdim0 and qdim1
+        qdim2 = np.cross(qdim0, qdim1)
+        qdim2 = qdim2 / np.max(np.absolute(qdim2))
+        # MAYBE DON'T (messing w bin offset) - normalize the two qdims so that mag of each is 1 A-1 and can easily do bins +/- 0.15
+        #qdim1 = qdim1 / np.linalg.norm(qdim1)
+        #qdim2 = qdim2 / np.linalg.norm(qdim2)
+
     
     return qdim1, qdim2
 
@@ -123,7 +99,7 @@ def find_qbins(pathSQE_params, qdim0, qdim1, qdim2, pt1, pt2, BZ_offset):
     qdim2_range = 0 
 
     # find the new path endpoint coords given change of basis from cart to qdim0,1,2
-    CoB_mat = np.linalg.inv(np.array([qdim0,qdim1,qdim2]).T)
+    CoB_mat = np.array([qdim0,qdim1,qdim2]) # edited from np.linalg.inv(np.array([qdim0,qdim1,qdim2]).T)
     path_start_transf = CoB_mat @ (pt1 + BZ_offset)
     path_end_transf = CoB_mat @ (pt2 + BZ_offset)
     
@@ -148,14 +124,14 @@ def find_qbins(pathSQE_params, qdim0, qdim1, qdim2, pt1, pt2, BZ_offset):
 
 
 
-def choose_dims_and_bins(pathSQE_params, point1, point2, perp_to_path=True, BZ_offset=np.array([0,0,0])):
+def choose_dims_and_bins(pathSQE_params, point1, point2, BZ_offset=np.array([0,0,0])):
     diff = point2 - point1
 
     # calculating default QDimension0 axis direction and scaling
     qdim0 = diff / np.max(np.absolute(diff))
 
     # determine the directions of qdim1 and qdim2
-    qdim1, qdim2 = find_qdim_1and2(qdim0, perp_to_path)
+    qdim1, qdim2 = find_qdim_1and2(qdim0)
     qdim0_range, qdim1_range, qdim2_range = find_qbins(pathSQE_params, qdim0, qdim1, qdim2, point1, point2, BZ_offset)
 
     # return list contains various types (mainly np arrays) that are converted to properly formatted strings
@@ -216,7 +192,7 @@ def make_all_slice_descs(path_to_poscar, BZ_offset=np.array([0,0,0])):
 
         pt1 = np.array(path['point_coords'][path_seg[0]])
         pt2 = np.array(path['point_coords'][path_seg[1]])
-        q_dims_and_bins = choose_dims_and_bins(pt1, pt2, perp_to_path=True, BZ_offset=np.array([0,0,0]))   
+        q_dims_and_bins = choose_dims_and_bins(pt1, pt2, BZ_offset=np.array([0,0,0]))   
         slice_desc = make_slice_desc(q_dims_and_bins, pt1, pt2, path_seg)
         dsl.append(slice_desc)
         
@@ -239,10 +215,15 @@ def find_matching_spacegroup(pathSQE_params):
     raise ValueError("No matching spacegroup found.")
 
 
-
+''' original
 def generate_unique_paths(mtd_spacegroup, path_seg, pt1, pt2):
+    # Get the symmetry operations for the spacegroup
     spacegroup = SpaceGroupFactory.createSpaceGroup(mtd_spacegroup)
     pg = spacegroup.getPointGroup()
+    print("pg ", pg)
+    #pg = PointGroupFactory.createPointGroup("-3m r")
+    #print("pg hard code ", pg)
+    
     rotations = [np.array([so.transformHKL((1, 0, 0)), so.transformHKL((0, 1, 0)), so.transformHKL((0, 0, 1))])
                  for so in pg.getSymmetryOperations()]
 
@@ -258,9 +239,38 @@ def generate_unique_paths(mtd_spacegroup, path_seg, pt1, pt2):
     # Split the unique_combined_array back into separate arrays for pt1 and pt2
     unique_pt1_array = unique_combined_array[:, :3]
     unique_pt2_array = unique_combined_array[:, 3:]
+    print(unique_pt1_array.shape[0])
+    print(unique_combined_array)
 
     return unique_pt1_array, unique_pt2_array
+'''
 
+
+def generate_unique_paths(mtd_spacegroup, path_seg, pt1, pt2, prim2mantid):
+    # Get the symmetry operations for the spacegroup
+    spacegroup = SpaceGroupFactory.createSpaceGroup(mtd_spacegroup)
+    pg = spacegroup.getPointGroup()
+    print(pg)
+    
+    rotations = [np.array([so.transformHKL((1, 0, 0)), so.transformHKL((0, 1, 0)), so.transformHKL((0, 0, 1))])
+                 for so in pg.getSymmetryOperations()]
+
+    new_pt1s = rotations @ pt1 @ prim2mantid
+    new_pt2s = rotations @ pt2 @ prim2mantid
+
+    # Combine new_pt1s and new_pt2s into a single array for comparison
+    combined_array = np.column_stack((new_pt1s, new_pt2s))
+
+    # Find unique rows in the combined array
+    unique_combined_array = np.unique(combined_array, axis=0)
+
+    # Split the unique_combined_array back into separate arrays for pt1 and pt2
+    unique_pt1_array = unique_combined_array[:, :3]
+    unique_pt2_array = unique_combined_array[:, 3:]
+    print("Symmetrically equivalent path segments ", unique_pt1_array.shape[0])
+    print(unique_combined_array)
+
+    return unique_pt1_array, unique_pt2_array
 
 
 def combine_data_within_bz(data, norm, mtd_data, mtd_norm):
@@ -401,8 +411,100 @@ def gen_BZ_list_from_BCC_BraggPts():
 
 
 
-import os
-import numpy as np
+def gen_BZ_list_Bi_Hexagonal():
+    # Generate the mesh grid for h, k, l ranges
+    h_prim, k_prim, l_prim = np.meshgrid(np.arange(-7, 8, 1), np.arange(-7, 8, 1), np.arange(-7, 8, 1))
+
+    # Flatten the mesh grids and stack them into an Nx3 array
+    primitive_BZ_list = np.vstack([h_prim.ravel(), k_prim.ravel(), l_prim.ravel()]).T
+
+    # Define the change of basis matrix from primitive rhombohedral to conventional hexagonal
+    prim2hex = np.linalg.inv(np.array([[2/3, 1/3, 1/3], 
+                                       [-1/3, 1/3, 1/3], 
+                                       [-1/3, -2/3, 1/3]]))
+
+    # Apply the change of basis to convert to the conventional hexagonal basis
+    hexagonal_BZ_list = np.dot(primitive_BZ_list, prim2hex.T)
+
+    # Initialize a list to store the valid Bragg points after filtering
+    filtered_BZ_list = []
+    # Apply experimental constraints
+    for pt in hexagonal_BZ_list:
+        h, k, l = pt
+        # Apply experimental constraints
+        if h>=-3 and h<=3 and l>=-8 and l<=8 and k>-1 and k<1 and ((h/3)**2 + (l/8)**2)<=1: # for 12 meV - full 360
+        #if h>=0 and h<=3 and l>=-10 and l<=10 and k>-1 and k<1 and ((h/3.7)**2 + (l/10.85)**2)<=1: # for 20 meV - 180 deg
+            filtered_BZ_list.append([h, k, l])
+
+    # Convert the filtered list back to a numpy array
+    filtered_BZ_list = np.array(filtered_BZ_list)
+
+    return filtered_BZ_list
+
+
+
+def gen_BZ_list_covThreshold_anyBasis(mde_data, pathSQE_params):
+    from slice_utils_07142023 import make_slice
+    
+    H_bound = pathSQE_params['H_bound']
+    K_bound = pathSQE_params['K_bound']
+    L_bound = pathSQE_params['L_bound']
+    E_bound = pathSQE_params['E_bound']
+    prim2conv_matrix = pathSQE_params['prim2mantid_transMatrix']
+    conv2prim_matrix = np.linalg.inv(prim2conv_matrix)
+    
+    # Transform supplied ranges to the primitive basis for slicing
+    H_min = conv2prim_matrix @ np.array([H_bound[0], 0, 0])
+    H_max = conv2prim_matrix @ np.array([H_bound[1], 0, 0])
+    K_min = conv2prim_matrix @ np.array([0, K_bound[0], 0])
+    K_max = conv2prim_matrix @ np.array([0, K_bound[1], 0])
+    L_min = conv2prim_matrix @ np.array([0, 0, L_bound[0]])
+    L_max = conv2prim_matrix @ np.array([0, 0, L_bound[1]])
+
+    # Adjust the binning for the transformed values (primitive basis)
+    slice_desc_BZcovThreshold = {
+        'QDimension0':conv_to_desc_string(conv2prim_matrix[0]),
+        'QDimension1':'0,1,0',
+        'QDimension2':'0,0,1',
+        'Dimension0Name':'QDimension0',
+        'Dimension0Binning':'{},0.5,{}'.format(H_min[0]-0.5, H_max[0]+0.5),
+        'Dimension1Name':'QDimension1',
+        'Dimension1Binning':'{},0.5,{}'.format(K_min[1]-0.5, K_max[1]+0.5),
+        'Dimension2Name':'QDimension2',
+        'Dimension2Binning':'{},0.5,{}'.format(L_min[2]-0.5, L_max[2]+0.5),
+        'Dimension3Name':'DeltaE',
+        'Dimension3Binning':'{},5,{}'.format(E_bound[0], E_bound[1]),
+        'Name':'pathSQE_BZcovThreshold'
+    }
+
+    # Generate the slice and get the signal array (primitive basis)
+    make_slice(mde_data[0], slice_desc_BZcovThreshold)
+    data_BZcovThreshold = mtd[slice_desc_BZcovThreshold['Name']].getSignalArray()
+
+    # Look for BZs with data in the primitive basis
+    BZ_H_vec = np.arange(H_min[0], H_max[0]+1, 1)
+    BZ_K_vec = np.arange(K_min[1], K_max[1]+1, 1)
+    BZ_L_vec = np.arange(L_min[2], L_max[2]+1, 1)
+
+    BZ_list = []
+    for h in range(len(BZ_H_vec)):
+        for k in range(len(BZ_K_vec)):
+            for l in range(len(BZ_L_vec)):
+                # Extract data for this BZ octant
+                BZ_data = data_BZcovThreshold[2*h:2*h+2, 2*k:2*k+2, 2*l:2*l+2, :]
+                frac_nonNaN_nonZero = np.sum(np.logical_and(~np.isnan(BZ_data), BZ_data != 0)) / np.size(BZ_data)
+                
+                # Check if the BZ contains enough data (threshold >= 0.75)
+                if frac_nonNaN_nonZero >= 0.75:
+                    # Transform BZ point to conventional basis before storing
+                    conv_point = prim2conv_matrix @ np.array([BZ_H_vec[h], BZ_K_vec[k], BZ_L_vec[l]])
+                    BZ_list.append(conv_point)
+    
+    BZ_list = np.array(BZ_list)
+    return BZ_list
+
+
+
 
 def get_existing_BZ(output_folder_path):
     """Retrieve BZ arrays that already have corresponding PDF reports."""
@@ -643,7 +745,7 @@ def plot_along_path_foldedBZ(foldedSegNames, dsl_fold, Ei, vmi, vma, cma='jet'):
             ax1.pcolormesh(mtd[foldedSegNames[i]], **colormesh_pars)
             ax1.set_ylabel('E (meV)')
             ax1.set_xlabel('')
-            ax1.set_ylim(0., Ei)
+            #ax1.set_ylim(0., Ei)
             ax1.set_xticks([x_start, x_end])
             set_seg_xlabels(ax1, i, dsl_fold)
             ax1.tick_params(direction='in')
@@ -852,7 +954,7 @@ def plot_SED_along_path_foldedBZ(foldedSegNames,dsl_fold,pathSQE_params):
             ax1.pcolormesh(SED_ws, **colormesh_pars)
             ax1.set_ylabel('E (meV)')
             ax1.set_xlabel('')
-            ax1.set_ylim(0.,Ei)
+            #ax1.set_ylim(0.,Ei)
             ax1.set_xticks([x_start, x_end])
             ax1.set_xticklabels(['{}'.format(dsl_fold[i]['seg_start_name']),''])
             ax1.tick_params(direction='in')

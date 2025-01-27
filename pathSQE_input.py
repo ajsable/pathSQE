@@ -19,26 +19,27 @@ import numpy as np
 def define_pathSQE_params(**kwargs):
     pathSQE_params={
     # a few required inputs
-    'sample':'FeSi',
-    'spacegroup':'P213', # don't worry about spaces - code can theoretically figure it out 
-    'Temp':650,
-    'Ei':70, 
+    'sample':'Bi',
+    'spacegroup':'R -3 m :r', # using rhombohedral 
+    'Temp':2,
+    'Ei':20, 
     'use_seeKpath_path':False, # current only works with False
     'which_seeKpath_pathSegments':None, # seeKpath segments to use
-    'user_defined_path':{'path':[ ('Gamma','X'), ('X','M'), ('M','Gamma'), ('Gamma','R'), ('R','X') ], 
-                         # defined in terms of the basis being used in mantid (most often conventional basis, not primitive basis)
-                         # original prim point coords: 'GAMMA': [0.0, 0.0, 0.0], ...
-                         'point_coords':{'Gamma': [0.0, 0.0, 0.0], 'X': [0.0, 0.5, 0.0], 'M': [0.5, 0.5, 0.0], 'R': [0.5, 0.5, 0.5] }},
+    'user_defined_path':{'path':[ ('Gamma','T'), ('T','X'), ('X','L'), ('L','Gamma'), ('Gamma','X') ], 
+                         # defined in terms of the primitive rhombohedral basis (i.e. not the basis being used in mantid which is often the conventional basis)
+                         'point_coords':{'Gamma': [0.0, 0.0, 0.0], 'T': [0.5, 0.5, 0.5], 'X': [0 , 0.5, 0.5], 'L': [0, 0.5, 0] }},
+    'prim2mantid_transMatrix': np.linalg.inv(np.array([[2/3, -1/3, -1/3], [1/3, 1/3, -2/3], [1/3, 1/3, 1/3]])), # bilbao space group R-3m (166) to hexagonal conv used in mantid UB matrix
+    
     
     # bins and integration ranges
     'qdim0_step_size':0.025, # fraction of qdim0
-    'E_bins':'0,0.5,70', # min, step, max
+    'E_bins':'-15,0.2,15', # min, step, max
     'qdim1_int_range':0.05, # fraction of qdim1
     'qdim2_int_range':0.05, # fraction of qdim2
     
     # saving outputs
     'BZ_report':True,
-    'saveDir':'/SNS/ARCS/IPTS-21211/shared/Aiden/comprehensive/BZfold_pathSQE/650K_70meV_avoidArtifacts/',
+    'saveDir':'/SNS/CNCS/IPTS-31965/shared/Aiden/comprehensive/BZfold_pathSQE/2K_20meV/',
     
     # parameters relevant to plotting
     #'vmin':1e-5, # 
@@ -46,7 +47,7 @@ def define_pathSQE_params(**kwargs):
     'cmap':'viridis',
     
     # for automatic slice quality evaluation 
-    'filters':['M_bragg_tails_70meV'], # under development
+    'filters':[], # under development
     
     # folding within 1 BZ based on point group (intra-BZ folding)
     'fold_one_zone':False,
@@ -57,7 +58,7 @@ def define_pathSQE_params(**kwargs):
     'H_bound':[-10,10], # range of H to check for data
     'K_bound':[-10,10], #   " "    K         " "
     'L_bound':[-10,10], #   " "    L         " " 
-    'E_bound':[15,60]}  #   " "    E         " "
+    'E_bound':[0,15]}  #   " "    E         " "
 
     return pathSQE_params
 
