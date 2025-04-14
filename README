@@ -1,0 +1,13 @@
+Clone pathSQE github on analysis cluster with:
+git clone https://github.com/ajsable/pathSQE.git
+
+Create necessary conda environment by running:
+conda env create -f pathSQE.yml
+
+Activate environment:
+conda activate pathSQE
+
+Modify define_data.py to match your data and pathSQE_input.py to desired settings
+
+Run pathSQE in the terminal using:
+python pathSQE_driver.py

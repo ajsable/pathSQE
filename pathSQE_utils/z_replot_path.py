@@ -24,59 +24,37 @@ def IqE_to_SED(SED_ws,T,Ebins):
 
 
 
-outputs_folder = '/SNS/CNCS/IPTS-31965/shared/Aiden/comprehensive/BZfold_pathSQE/300K_20meV_initial/'
+outputs_folder = '/SNS/ARCS/IPTS-13861/shared/Aiden/comprehensive/pathSQE_testing_FeSi/10K_40meV_foldWSims_paper/'
 
-prim2mantid_transMatrix = np.linalg.inv(np.array([[2/3, -1/3, -1/3], [1/3, 1/3, -2/3], [1/3, 1/3, 1/3]])) # bilbao space group R-3m (166) to hexagon>
-
-user_defined_path = {'path':[ ('Gamma','T'), ('T','X'), ('X','L'), ('L','Gamma'), ('Gamma','X') ], 
-                         # defined in terms of the primitive rhombohedral basis (i.e. not the basis being used in mantid which is often the conventional basis)
-                         'point_coords':{'Gamma': [0.0, 0.0, 0.0], 'T': [0.5, 0.5, 0.5], 'X': [0 , 0.5, 0.5], 'L': [0, 0.5, 0] }}
-
-T = 300
-Ebins = '-15,0.2,15'
+prim2mantid_transMatrix = np.array([[1,0,0], [0,1,0], [0,0,1]])
+user_defined_path={'path':[ ('Gamma','X'), ('X','M'), ('M','Gamma'), ('Gamma','R'), ('R','X') ],  
+                    '1d_points':['Gamma', 'R', 'X'],
+                    'point_coords':{ 'Gamma': [0.0, 0.0, 0.0], 'X': [0.0, 0.5, 0.0], 'M': [0.5, 0.5, 0.0], 'R': [0.5, 0.5, 0.5] }}        
+T = 10
+Ebins = '0,0.25,40'
 
 
+data_path = outputs_folder+'folding_progess/folded_sim_path_plot_96.npz'
+with np.load(data_path, allow_pickle=True) as data_npz:
+    data_arrays = [data_npz[key].T for key in data_npz]  # Extract all arrays
 
-foldedSegNames = []
-foldedSEDNames = []
+
 ratios = []
-for seg in user_defined_path['path']:
-    name = '{}2{}'.format(seg[0],seg[1])
-    foldedSegNames.append(name)
-    LoadMD(Filename=outputs_folder+'{}_folded.nxs'.format(name), OutputWorkspace='{}'.format(name), LoadHistory=False)
-    
-    SED_ws = mtd['{}'.format(name)].clone()
-    SED_ws = IqE_to_SED(SED_ws=SED_ws,T=T,Ebins=Ebins)
-    SaveMD(SED_ws, Filename=outputs_folder+'{}_folded_SEDnew.nxs'.format(name))
-    LoadMD(Filename=outputs_folder+'{}_folded_SEDnew.nxs'.format(name), OutputWorkspace='{}_SED'.format(name), LoadHistory=False)
-    foldedSEDNames.append('{}_SED'.format(name))
-    
+for seg in user_defined_path['path']:    
     pt1_prim = np.array(user_defined_path['point_coords'][seg[0]])
     pt2_prim = np.array(user_defined_path['point_coords'][seg[1]])
     norm_prim = np.linalg.norm(pt2_prim-pt1_prim)
 
-    pt1_conv = prim2mantid_transMatrix @ pt1_prim
-    pt2_conv = prim2mantid_transMatrix @ pt2_prim
-    norm_conv = np.linalg.norm(pt2_conv-pt1_conv)
-
     ratios.append(norm_prim)
 
-print(foldedSegNames)
-
-print(foldedSEDNames)
-
-print('scaling ratios ', ratios)
-
-lens = [0, 0.126454, 0.260268, 0.394082, 0.527896, 0.680331]
-ratios = [lens[i+1]-lens[i] for i in range(len(lens)-1)]
 
 
-plt.rcParams['figure.dpi'] = 300
-plt.rcParams['savefig.dpi'] = 300
+plt.rcParams['figure.dpi'] = 600
+plt.rcParams['savefig.dpi'] = 600
 plt.rcParams.update({'font.size': 28})
 
 colormesh_pars={}
-colormesh_pars['norm']=SymLogNorm(linthresh=5e-3,vmin=5e-3,vmax=2e-1) # data (linthresh=1e-3,vmin=1e-3,vmax=2e-1)
+colormesh_pars['norm']=SymLogNorm(linthresh=1e-1,vmin=1e-1,vmax=1e2) # data (linthresh=1e-3,vmin=1e-3,vmax=2e-1)
 colormesh_pars['cmap']='viridis'
 
 
@@ -84,31 +62,31 @@ fig, axes = plt.subplots(1, len(ratios), gridspec_kw={'width_ratios': ratios}, f
 
 
 ax1 = axes[0]
-ax1.pcolormesh(mtd[foldedSEDNames[0]], **colormesh_pars)
+ax1.pcolormesh(data_arrays[0], **colormesh_pars)
 ax1.set_ylabel('E (meV)')
 ax1.set_xlabel('')
 ax1.tick_params(direction='in')
 
 ax2 = axes[1]
-ax2.pcolormesh(mtd[foldedSEDNames[1]], **colormesh_pars)
+ax2.pcolormesh(data_arrays[1], **colormesh_pars)
 ax2.set_xlabel('')
 ax2.get_yaxis().set_visible(False)
 ax2.tick_params(direction='in')
 
 ax3 = axes[2]
-ax3.pcolormesh(mtd[foldedSEDNames[2]], **colormesh_pars)
+ax3.pcolormesh(data_arrays[2], **colormesh_pars)
 ax3.set_xlabel('')
 ax3.get_yaxis().set_visible(False)
 ax3.tick_params(direction='in')
 
 ax4 = axes[3]
-ax4.pcolormesh(mtd[foldedSEDNames[3]], **colormesh_pars)
+ax4.pcolormesh(data_arrays[3], **colormesh_pars)
 ax4.set_xlabel('')
 ax4.get_yaxis().set_visible(False)
 ax4.tick_params(direction='in')
 
 axL = axes[-1]
-mappable = axL.pcolormesh(mtd[foldedSEDNames[-1]], **colormesh_pars)
+mappable = axL.pcolormesh(data_arrays[-1], **colormesh_pars)
 axL.get_yaxis().set_visible(False)
 axL.set_xlabel('')
 axL.tick_params(direction='in')
@@ -133,14 +111,14 @@ ax3.set_xticklabels([user_defined_path['path'][2][0],''])
 
 #ax4.set_xlim([x0[3], x0[3]])
 ax4.set_xticks([x0[3][0], x0[3][1]])
-ax4.set_xticklabels([user_defined_path['path'][3][0],''])
+ax4.set_xticklabels([r'$\Gamma$',''])
 
 #axL.set_xlim([x0[4], x0[4]])
 axL.set_xticks([x0[4][0], x0[4][1]])
 #axL.set_xticklabels([user_defined_path['path'][4][0], user_defined_path['path'][4][1]])
-axL.set_xticklabels([r'$\Gamma$', user_defined_path['path'][4][1]])
+axL.set_xticklabels([user_defined_path['path'][4][0], user_defined_path['path'][4][1]])
 
-fig.suptitle('Folded Bi 300 K, 20 meV',  fontsize=22)
+fig.suptitle('FeSi sim 100 K, 40 meV',  fontsize=22)
 
 plt.subplots_adjust(wspace=0, hspace=0)
 
@@ -150,4 +128,4 @@ cbar = fig.colorbar(mappable,orientation='vertical',cax=cb_ax)
 cbar.ax.tick_params(labelsize=15)
 
 plt.rcParams.update({'font.size': 10})
-fig.savefig(outputs_folder+'Bi_300K_20meV_SED.png')
+fig.savefig(outputs_folder+'FeSi_10K_40meV_sim.png')
