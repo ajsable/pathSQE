@@ -1,19 +1,10 @@
-import numpy as np
-
 ########################################################################################################
 # Define dictionary input file for running pathSQE
 # Author: Aiden Sable. April 2025.
 ########################################################################################################
 
-# To run pathSQE_driver.py, you need the following files in addition to this script:
-#       pathSQE_driver.py
-#       pathSQE_functions.py
-#       define_data.py
-#       reduce_data_to_MDE.py
-#       slice_utils.py
-#       POSCAR (if 'use seeKpath path'=True or 'perform simulations=True)
-#       FORCE_CONSTANTS (if 'perform simulations=True)
 
+import numpy as np
 
 def define_pathSQE_params(**kwargs):
     pathSQE_params={

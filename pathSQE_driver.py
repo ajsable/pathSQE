@@ -1,3 +1,9 @@
+########################################################################################################
+# Driver script for running pathSQE main program in conjuction with a pathSQE input file
+# Author: Aiden Sable. April 2025.
+########################################################################################################
+
+
 import numpy as np
 import seekpath
 import os
@@ -35,22 +41,6 @@ imp.reload(reduce_data_to_MDE_07142023)
 
 import pathSQE_utils.slice_utils_07142023 as slice_utils_07142023
 imp.reload(slice_utils_07142023)
-
-########################################################################################################
-# Driver script for running pathSQE main program in conjuction with a pathSQE input file
-# Author: Aiden Sable. April 2025.
-########################################################################################################
-
-# To run pathSQE_driver.py, you need the following files in addition to this script:
-#       pathSQE_input.py
-#       pathSQE_functions.py
-#       define_data.py
-#       reduce_data_to_MDE.py
-#       slice_utils.py
-#       POSCAR (if 'use seeKpath path'=True or 'perform simulations=True)
-#       FORCE_CONSTANTS (if 'perform simulations=True)
-
-
 
 #######################################################################################################
         ################## LOAD PARAMETERS, DATA, AND PREPARE FOR PROCESSING ###################
