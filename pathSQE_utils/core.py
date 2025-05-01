@@ -87,9 +87,12 @@ def find_BZ_with_data(mde_data, pathSQE_params, hkl_range=(-10, 10, -10, 10, -10
         if fraction_coverage >= min_fraction:
             BZ_list.append((Q_current, fraction_coverage))
 
-    # Convert to NumPy array and sort (highest to lowest coverage)
-    BZ_full_array = np.array(BZ_full_list, dtype=object)  # Keep object type for tuple storage
-    BZ_full_array = BZ_full_array[BZ_full_array[:, 1].argsort()[::-1]]  # Sort by coverage (descending)
+    # Sort by coverage descending, then by norm of BZ (column 0) descending
+    BZ_full_array = np.array(BZ_full_list, dtype=object)
+    coverage = np.array([entry[1] for entry in BZ_full_array])
+    bz_norms = np.linalg.norm([entry[0] for entry in BZ_full_array], axis=1)
+    sort_idx = np.lexsort(( -bz_norms, -coverage ))  # Primary: coverage, Secondary: BZ norm
+    BZ_full_array = BZ_full_array[sort_idx]
 
     # Save to file
     np.savetxt(os.path.join(pathSQE_params['output directory'],"BZ_coverage_sorted.txt"), 
@@ -130,7 +133,7 @@ def find_BZ_with_data(mde_data, pathSQE_params, hkl_range=(-10, 10, -10, 10, -10
     plt.close()
 
     # Step 4: Sort and return the ranked BZ list
-    BZ_list.sort(key=lambda x: x[1], reverse=True)  # Sort descending by coverage
+    BZ_list.sort(key=lambda x: (x[1], np.linalg.norm(x[0])), reverse=True)  # Sort descending by coverage, secondary by BZ norm
 
     # Extract separate lists for BZ centers and their corresponding fractional coverages
     BZ_centers = [bz[0] for bz in BZ_list]

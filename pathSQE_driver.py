@@ -418,6 +418,7 @@ if pathSQE_params['all symmetric 1d cuts']:
 
         # find all unique sym points in BZ coverage (avoid repeating same point in different BZ)
         allSymPts_array = pathSQE_core.generate_unique_symPts_inAllBZ(BZ_list, symPts_array)
+        np.save(os.path.join(pathSQE_params['output directory'], 'probed_{}_pts.npy'.format(symPoint)), allSymPts_array)
 
         for j in range(allSymPts_array.shape[0]):
             for k in range(len(mde_data)):

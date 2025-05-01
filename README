@@ -2,7 +2,7 @@ Clone pathSQE github on analysis cluster with:
 git clone https://github.com/ajsable/pathSQE.git
 
 Create necessary conda environment by running:
-conda env create -f pathSQE.yml
+conda create -n pathSQE -c conda-forge -c mantid mantid phonopy
 
 Activate environment:
 conda activate pathSQE

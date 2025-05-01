@@ -242,19 +242,28 @@ def generate_BZ_Report_morePages(pathSQE_params, BZ_offset, all_slice_names_in_B
                         if not all_slice_evals[i][j]:
                             axes[row_index, col_index].set_title('Flagged Slice (ID {})'.format(slice_ID), color='red')
 
-                        # x ticks and labels
-                        point1_str, point2_str = slice_name.replace("pathSQE_", "").split("_to_")
-                        point1 = np.array([float(x) for x in point1_str.split(",")])
-                        point2 = np.array([float(x) for x in point2_str.split(",")])
-                        #print(slice_name, point1_str, point2_str, point1, point2)
-                        x_min_exp, x_max_exp = axes[row_index, col_index].get_xlim()
-                        #print(x_min_exp, x_max_exp)
-                        axes[row_index, col_index].set_xticks([x_min_exp, x_max_exp])
-                        axes[row_index, col_index].set_xticklabels([f'{tick}' for tick in [point1, point2]])
-
                     else:
-                        axes[row_index, col_index].text(0.5, 0.5, 'No data along this segment', ha='center',
+                        axes[row_index, col_index].text(0.5, 0.5, 'No data', ha='center',
                                                        va='center', fontsize=10, color='red')
+
+                    # x ticks and labels
+                    point1_str, point2_str = slice_name.replace("pathSQE_", "").split("_to_")
+                    point1 = np.array([float(x) for x in point1_str.split(",")]) + BZ_offset
+                    point2 = np.array([float(x) for x in point2_str.split(",")]) + BZ_offset
+                    #print(slice_name, point1_str, point2_str, point1, point2)
+                    x_min_exp, x_max_exp = axes[row_index, col_index].get_xlim()
+                    #print(x_min_exp, x_max_exp)
+                    axes[row_index, col_index].set_xticks([x_min_exp, x_max_exp])
+                    axes[row_index, col_index].set_xticklabels([f'{tick}' for tick in [point1, point2]])
+
+                # Hide unused subplots (case 3: non-existent slices on the last page)
+                total_plots = len(all_slice_names_in_BZ[i][start_idx:end_idx])
+                n_rows, n_cols = axes.shape
+
+                for idx in range(total_plots, n_rows * n_cols):
+                    row_index = idx // n_cols
+                    col_index = idx % n_cols
+                    axes[row_index, col_index].set_visible(False)
 
                 # Add BZ_offset and path_seg information at the top of each page
                 fig.suptitle(f'BZ: {BZ_offset}, Path Segment: {path_seg[0]} to {path_seg[1]} - Page {page_num + 1}',
@@ -315,7 +324,7 @@ def plot_SED_along_path_foldedBZ(foldedSegNames,dsl_fold,pathSQE_params):
         
         SED_ws = mtd[foldedSegNames[i]].clone()
         SED_ws = IqE_to_SED(SED_ws=SED_ws,T=T,Ebins=Ebins)
-        SaveMD(SED_ws, Filename=os.path.join(pathSQE_params['output directory'],'bzfold_nxs_files','{}2{}_folded_SED.nxs'.format(dsl_fold[i]['seg_start_name'],dsl_fold[i]['seg_end_name'])))
+        SaveMD(SED_ws, Filename=os.path.join(pathSQE_params['output directory'],'allSym_nxs_files','{}2{}_folded_SED.nxs'.format(dsl_fold[i]['seg_start_name'],dsl_fold[i]['seg_end_name'])))
         
         if i == 0:
             slice = SED_ws.getSignalArray()
@@ -796,8 +805,8 @@ def generate_BZ_Report_with_Sims(pathSQE_params, BZ_offset, all_slice_names_in_B
 
                         # x ticks and labels
                         point1_str, point2_str = slice_name.replace("pathSQE_", "").split("_to_")
-                        point1 = np.array([float(x) for x in point1_str.split(",")])
-                        point2 = np.array([float(x) for x in point2_str.split(",")])
+                        point1 = np.array([float(x) for x in point1_str.split(",")]) + BZ_offset
+                        point2 = np.array([float(x) for x in point2_str.split(",")]) + BZ_offset
                         #print(slice_name, point1_str, point2_str, point1, point2)
                         x_min_exp, x_max_exp = axes[row_index, col_index].get_xlim()
                         #print(x_min_exp, x_max_exp)
@@ -835,7 +844,6 @@ def generate_BZ_Report_with_Sims(pathSQE_params, BZ_offset, all_slice_names_in_B
                     else:
                         axes[row_index, col_index].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=10, color='red')
                         axes[row_index, col_index+1].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=10, color='red')
-
 
                 fig.suptitle(f'BZ: {BZ_offset}, Path Segment: {path_seg[0]} to {path_seg[1]} - Page {page_num + 1}', fontsize=14)
                 fig.tight_layout(h_pad=0.3, w_pad=0.3)
