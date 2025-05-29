@@ -368,3 +368,53 @@ def make_slice_desc_1DSymPoints(pathSQE_params, symPoint, point):
     return slice_desc
 
 
+
+def adaptive_colorbars(slice_ws_names, pathSQE_params, percentile_min=10, percentile_max=95, elastic_frac_threshold=0.05):
+    """
+    Computes adaptive colorbar vmin and vmax based on percentiles of signal arrays from sliced workspaces.
+    
+    Parameters:
+        slice_ws_names (list of str): Names of the Mantid slice workspaces.
+        pathSQE_params (dict): Dictionary containing keys:
+            - 'E bins': str of comma-separated energy binning (e.g., "-10,0.25,50")
+            - 'T and Ei conditions': tuple or list, where index 1 is Ei (incident energy)
+        percentile_min (float): Lower percentile for colorbar scaling (e.g., 10).
+        percentile_max (float): Upper percentile for colorbar scaling (e.g., 95).
+        elastic_frac_threshold (float): Fraction of Ei used to define cutoff above the elastic line.
+    
+    Returns:
+        tuple: (vmin, vmax) values for consistent colorbar scaling.
+    """
+
+    # Extract energy bin step and incident energy
+    step = float(pathSQE_params['E bins'].split(',')[1])
+    Ei = pathSQE_params['T and Ei conditions'][0][1]
+
+    # Use a fraction of Ei to define index above elastic line
+    elastic_meV = elastic_frac_threshold * Ei
+    ind_above_elastic = int(np.ceil(elastic_meV / step))
+
+    pathMax = -1
+    pathMin = 1e2
+
+    for seg in slice_ws_names:
+        try:
+            full_signal = np.squeeze(mtd[seg].getSignalArray())
+            slice_signal = full_signal[:, ind_above_elastic:]
+
+            mask = ~np.isnan(slice_signal) & (slice_signal > 0)
+            if np.any(mask):
+                segMin = np.percentile(slice_signal[mask], percentile_min)
+                segMax = np.percentile(slice_signal[mask], percentile_max)
+
+                if segMax > pathMax:
+                    pathMax = segMax
+                if segMin < pathMin:
+                    pathMin = segMin
+            else:
+                print(f"Warning: No valid signal values in segment {seg}, skipping.")
+        except Exception as e:
+            print(f"Error processing segment {seg}: {e}")
+
+    return pathMin, pathMax
+

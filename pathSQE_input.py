@@ -1,6 +1,6 @@
 ########################################################################################################
 # Define dictionary input file for running pathSQE
-# Author: Aiden Sable. April 2025.
+# Author: Aiden Sable. May 2025.
 ########################################################################################################
 
 
@@ -25,28 +25,25 @@ def define_pathSQE_params(**kwargs):
     'qdim2 integration range':0.05, # +/- integration range for qdim2 in rlu
 
     # more advanced / comprehensive processing options
-    'all symmetric 2d slices':False, # whether to process all symmetrically equivalent 2d inelastic slices (also includes bz folding)
-    'all symmetric 1d cuts':True, # whether to process all symmetrically equivalent 1d cuts
+    'all symmetric 2d slices':True, # whether to process all symmetrically equivalent 2d inelastic slices (also includes bz folding)
+    'all symmetric 1d cuts':False, # whether to process all symmetrically equivalent 1d cuts
     'BZ to process':0.89, # float or list of lists; if float between [0,1], then BZ with fractional qE coverage above provided threshold are processed (e.g. 0.5); if list of lists, data in each listed BZ will be processed (e.g. [[1,1,1], [2,0,0], [4,2,0]])
     'slice filter functions':[], # list of string(s), for automatic slice evaluation and filtering, string(s) must match filter function(s) specified in filter_functions.py
     
     # simulation details - POSCAR and FORCE_CONSTANTS required
-    'perform simulations':True, # whether to perform analogous S(Q,E) simulations
+    'perform simulations':False, # whether to perform analogous S(Q,E) simulations
     'supercell dimensions':[4,4,4], # supercell dimensions used to generate FORCE_CONSTANTS
     'use experimental coverage mask':True, # whether to impose experimental Q,E coverage mask on simulations
-    'energy blurring sigma':0.75, # resolution blurring stdev in E, unit of E step (i.e. setting 2 here if E_bins[1] is 0.5 meV would give blurring with 1 meV stdev)
+    'resolution blurring':(0.8,0.05,'ARCS'), # (E FWHM in meV, Q FWHM in rlu, optional instrument string); if instrument, E FWHM should be elastic line FWHM
     
     # saving and outputs
-    'output directory':'/SNS/ARCS/IPTS-13861/shared/Aiden/comprehensive/pathSQE_testing_Ge/paperData3_5K_40meV/', # where to save everything (will be created if doesn't exist)
+    'output directory':'/SNS/ARCS/IPTS-13861/shared/Aiden/comprehensive/pathSQE_testing_Ge/test_outputs/', # where to save everything (will be created if doesn't exist)
     'cmap':'viridis', # colormap for 2d plots
 
-    # temporary - need to figure out how these can be accessed from loaded MDE workspace - ask Andrei
+    # temporary - access from loaded MDE workspace
     'u_vec':np.array([1,0,0]),
     'v_vec':np.array([0,1,0])
     }
 
     return pathSQE_params
-
-
-
 

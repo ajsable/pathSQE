@@ -286,6 +286,79 @@ def combine_data_within_bz(data, norm, mtd_data, mtd_norm):
 
 
 
+def fold_BZs(BZ_fold_list, base_BZ, pathSQE_params, user_defined_Qpoints, rerun=False):
+    """
+    Fold multiple Brillouin zones' MD data files into a single dataset.
+
+    Parameters:
+        BZ_fold_list (list): List of BZ indices to combine (determined externally).
+        BZ_offset (int): A reference BZ index used as the base for folding.
+        pathSQE_params (dict): Contains 'output directory' as a key for file paths.
+        user_defined_Qpoints (dict): Contains 'path', a list of label pairs used to generate segment names.
+    """
+    print('\nCombining all {} BZ(s)...'.format(len(BZ_fold_list)))
+
+    data_and_norm_dir = os.path.join(pathSQE_params['output directory'], 'allSym_nxs_files', 'DataAndNorms')
+    all_files = os.listdir(data_and_norm_dir)
+
+    # Use base zone to accumulate data into and others to combine
+    base_BZ_files = [f for f in all_files if str(base_BZ) in f]
+
+    # FIXED: ensure safe string comparison without NumPy ambiguity
+    BZ_list_files = [
+        f for f in all_files
+        if any(str(bz) in f for bz in map(str, BZ_fold_list) if str(bz) != str(base_BZ))
+    ]
+
+    # Generate segment names like 'G2X', 'X2U', etc.
+    seg_names = ['{}2{}'.format(p[0], p[1]) for p in user_defined_Qpoints['path']]
+
+    for path_seg in seg_names:
+        print(f"  Folding segment: {path_seg}")
+
+        # Files from the reference BZ (base_BZ)
+        pathSeg_files_baseBZ = [f for f in base_BZ_files if path_seg in f]
+        first_data_file = next((f for f in pathSeg_files_baseBZ if 'data' in f), None)
+        first_norm_file = next((f for f in pathSeg_files_baseBZ if 'norm' in f), None)
+
+        if first_data_file is None or first_norm_file is None:
+            print(f"    Skipping {path_seg}: Missing data or norm files in reference BZ {base_BZ}")
+            continue
+
+        data = LoadMD(Filename=os.path.join(data_and_norm_dir, first_data_file))
+        norm = LoadMD(Filename=os.path.join(data_and_norm_dir, first_norm_file))
+
+        # Files from other BZs to fold in
+        pathSeg_files_otherBZs = [f for f in BZ_list_files if path_seg in f]
+        data_files = [f for f in pathSeg_files_otherBZs if 'data' in f]
+        norm_files = [f for f in pathSeg_files_otherBZs if 'norm' in f]
+
+        if len(data_files) != len(norm_files):
+            print(f"    Warning: Mismatched data/norm file count for segment {path_seg}")
+
+        for dfile, nfile in zip(data_files, norm_files):
+            data_temp = LoadMD(Filename=os.path.join(data_and_norm_dir, dfile), LoadHistory=False)
+            norm_temp = LoadMD(Filename=os.path.join(data_and_norm_dir, nfile), LoadHistory=False)
+
+            data.setSignalArray(data.getSignalArray() + data_temp.getSignalArray())
+            norm.setSignalArray(norm.getSignalArray() + norm_temp.getSignalArray())
+            data.setErrorSquaredArray(data.getErrorSquaredArray() + data_temp.getErrorSquaredArray())
+
+        # Normalize and save the folded result
+        folded_ws = data / norm
+        if rerun:
+            output_file = os.path.join(pathSQE_params['output directory'], 'Reruns', f'{path_seg}_folded.nxs')
+        else:
+            output_file = os.path.join(pathSQE_params['output directory'], 'allSym_nxs_files', f'{path_seg}_folded.nxs')
+        SaveMD(folded_ws, Filename=output_file)
+        LoadMD(Filename=output_file, OutputWorkspace=path_seg, LoadHistory=False)
+
+        print(f"    Saved folded segment to: {output_file}")
+
+    return seg_names
+
+
+
 def generate_unique_symPts(mtd_spacegroup, symPoint, symPt_init):
     spacegroup = SpaceGroupFactory.createSpaceGroup(mtd_spacegroup)
     pg = spacegroup.getPointGroup()

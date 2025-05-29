@@ -7,8 +7,9 @@ from matplotlib.cm import ScalarMappable, coolwarm, viridis
 from matplotlib.backends.backend_pdf import PdfPages
 from mantid.simpleapi import *
 from mantid import plots
-from . import simulations
 
+from . import simulations
+from . import helper
 
 
 def update_BZ_folding_plot(BZ_full_array, BZ_offset, pathSQE_params):
@@ -91,8 +92,8 @@ def set_seg_xlabels(seg_axis, i, dsl_fold):
 
 def plot_along_path_foldedBZ(foldedSegNames, dsl_fold, Ei, vmi, vma, cma='jet'):
     
-    plt.rcParams['figure.dpi'] = 300
-    plt.rcParams['savefig.dpi'] = 300
+    plt.rcParams['figure.dpi'] = 150
+    plt.rcParams['savefig.dpi'] = 150
     plt.rcParams.update({'font.size': 28})
     
     num_segments = len(foldedSegNames)
@@ -150,7 +151,7 @@ def plot_along_path_foldedBZ(foldedSegNames, dsl_fold, Ei, vmi, vma, cma='jet'):
     
 
 
-def generate_BZ_Report_morePages(pathSQE_params, BZ_offset, all_slice_names_in_BZ, all_slice_evals, dsl_fold):
+def generate_BZ_Report_morePages(pathSQE_params, BZ_offset, all_sliceInfo_in_BZ, dsl_fold):
     pdf_filename = os.path.join(pathSQE_params['output directory'],'Reports/BZ_Report_{}.pdf'.format(BZ_offset))
     with PdfPages(pdf_filename) as pdf:
         # Create a new figure for the final folded path in given BZ
@@ -162,35 +163,8 @@ def generate_BZ_Report_morePages(pathSQE_params, BZ_offset, all_slice_names_in_B
         sortedWorkspaceNames = [name + '.nxs' for name in sortedWorkspaceNames]
     
         # Adaptive colorbars
-        step = float(pathSQE_params['E bins'].split(',')[1])
-        ind_aboveElasticLine = int(np.ceil(3 / step))
-        pathMax = -1
-        pathMin = 1e4
-
-        for seg in sortedWorkspaceNames:              
-            slice = mtd[seg].getSignalArray()[:, 0, 0, ind_aboveElasticLine:]
-            
-            # Mask NaN and zero values
-            mask = ~np.isnan(slice) & (slice != 0)
-            
-            try:
-                # Check if there are any valid values before calculating percentiles
-                if np.any(mask):
-                    segMin = np.percentile(slice[mask], 10)
-                    segMax = np.percentile(slice[mask], 97)
-
-                    # Update pathMin and pathMax
-                    if segMax > pathMax:
-                        pathMax = segMax
-                    if segMin < pathMin:
-                        pathMin = segMin
-                else:
-                    print(f"Warning: No valid data in segment {seg}, skipping percentile calculation.")
-            
-            except Exception as e:
-                print(f"Error processing segment {seg}: {e}")
-
-        
+        pathMin, pathMax = helper.adaptive_colorbars(sortedWorkspaceNames, pathSQE_params, percentile_min=10, percentile_max=97)
+       
         fig_path_foldedBZ = plot_along_path_foldedBZ(foldedSegNames=sortedWorkspaceNames, dsl_fold=dsl_fold,
                                                     Ei=pathSQE_params['T and Ei conditions'][0][1], vmi=pathMin,
                                                     vma=pathMax, cma=pathSQE_params['cmap'])
@@ -203,26 +177,27 @@ def generate_BZ_Report_morePages(pathSQE_params, BZ_offset, all_slice_names_in_B
         plt.close(fig_path_foldedBZ)
 
         # now make page for each path seg showing all of the individual slices that were combined
-        for i in range(len(all_slice_names_in_BZ)):  # range(len(path['path'])):
+        for i in range(len(all_sliceInfo_in_BZ)):  # range(len(path['path'])):
             path_seg = [dsl_fold[i]['seg_start_name'], dsl_fold[i]['seg_end_name']]
 
             # Calculate the number of pages needed for this path segment
-            num_pages = int(np.ceil(len(all_slice_names_in_BZ[i])/12))
+            num_pages = int(np.ceil(len(all_sliceInfo_in_BZ[i])/12))
 
             for page_num in range(num_pages):
                 # Calculate the start and end index for slices on this page
                 start_idx = page_num * 12
-                end_idx = min((page_num + 1) * 12, len(all_slice_names_in_BZ[i]))
+                end_idx = min((page_num + 1) * 12, len(all_sliceInfo_in_BZ[i]))
 
                 # Create a new figure for each path_seg
                 fig, axes = plt.subplots(nrows=3, ncols=4, subplot_kw={'projection': 'mantid'}, figsize=(12, 9))
-                plt.rcParams['figure.dpi'] = 300
-                plt.rcParams['savefig.dpi'] = 300
+                plt.rcParams['figure.dpi'] = 150
+                plt.rcParams['savefig.dpi'] = 150
                 plt.set_cmap(pathSQE_params['cmap'])
 
-                for j, slice_info in enumerate(all_slice_names_in_BZ[i][start_idx:end_idx]):
+                for j, slice_info in enumerate(all_sliceInfo_in_BZ[i][start_idx:end_idx]):
                     slice_name = slice_info[0]
                     slice_ID = slice_info[1]
+                    slice_eval = slice_info[2]
                     
                     # Adjust the subplot position based on the number of rows and columns
                     row_index = j // 4
@@ -232,14 +207,14 @@ def generate_BZ_Report_morePages(pathSQE_params, BZ_offset, all_slice_names_in_B
                     ind_aboveElasticLine = int(np.ceil(3/step))
                     slice = mtd[slice_name].getSignalArray()[:,0,0,ind_aboveElasticLine:]
                     # Mask NaN and zero values
-                    mask = ~np.isnan(slice) & (slice != 0)
+                    mask = ~np.isnan(slice) & (slice > 0)
                     
                     if np.any(mask != 0):
                         segMin = np.percentile(slice[mask],10)
                         segMax = np.percentile(slice[mask],97)
                         axes[row_index, col_index].pcolormesh(mtd[slice_name], vmin=segMin, vmax=segMax, rasterized=True)
                         axes[row_index, col_index].set_title('ID {}'.format(slice_ID))
-                        if not all_slice_evals[i][j]:
+                        if not slice_eval:
                             axes[row_index, col_index].set_title('Flagged Slice (ID {})'.format(slice_ID), color='red')
 
                     else:
@@ -257,7 +232,7 @@ def generate_BZ_Report_morePages(pathSQE_params, BZ_offset, all_slice_names_in_B
                     axes[row_index, col_index].set_xticklabels([f'{tick}' for tick in [point1, point2]])
 
                 # Hide unused subplots (case 3: non-existent slices on the last page)
-                total_plots = len(all_slice_names_in_BZ[i][start_idx:end_idx])
+                total_plots = len(all_sliceInfo_in_BZ[i][start_idx:end_idx])
                 n_rows, n_cols = axes.shape
 
                 for idx in range(total_plots, n_rows * n_cols):
@@ -301,8 +276,8 @@ def plot_SED_along_path_foldedBZ(foldedSegNames,dsl_fold,pathSQE_params):
     Ei= pathSQE_params['T and Ei conditions'][0][1]
     cma=pathSQE_params['cmap']
     
-    plt.rcParams['figure.dpi'] = 300
-    plt.rcParams['savefig.dpi'] = 300
+    plt.rcParams['figure.dpi'] = 150
+    plt.rcParams['savefig.dpi'] = 150
     plt.rcParams.update({'font.size': 28})
 
     fig=plt.figure(figsize=(12,5))
@@ -328,7 +303,7 @@ def plot_SED_along_path_foldedBZ(foldedSegNames,dsl_fold,pathSQE_params):
         
         if i == 0:
             slice = SED_ws.getSignalArray()
-            mask = ~np.isnan(slice) & (slice != 0)
+            mask = ~np.isnan(slice) & (slice > 0)
             vmi = np.percentile(slice[mask],10)
             vma = np.percentile(slice[mask],97)
             colormesh_pars['norm']=SymLogNorm(linthresh=vmi,vmin=vmi,vmax=vma)#(linthresh=9e-6,vmin=9e-6,vmax=2e-3)
@@ -442,8 +417,8 @@ def generate_BZ_Report_1DSymPoints(pathSQE_params, symPoint, symPt_slice_arrays,
 
             # Create figure for each page
             fig, axes = plt.subplots(nrows=3, ncols=4, subplot_kw={'projection': 'mantid'}, figsize=(12, 9))
-            plt.rcParams['figure.dpi'] = 300
-            plt.rcParams['savefig.dpi'] = 300
+            plt.rcParams['figure.dpi'] = 150
+            plt.rcParams['savefig.dpi'] = 150
             
             for j in range(len(symPts_subset)):
                 row_index = j // 4
@@ -547,8 +522,8 @@ def plot_simple_1d_pt(pathSQE_params, symPoint, symPt_init, slice_names):
 
     # Create figure for each page
     fig, axes = plt.subplots(subplot_kw={'projection': 'mantid'})
-    plt.rcParams['figure.dpi'] = 300
-    plt.rcParams['savefig.dpi'] = 300
+    plt.rcParams['figure.dpi'] = 150
+    plt.rcParams['savefig.dpi'] = 150
 
     # Get colormap
     cmap = plt.get_cmap('coolwarm')
@@ -639,8 +614,8 @@ def plot_simple_1d_pt(pathSQE_params, symPoint, symPt_init, slice_names):
 
 def plot_along_path_foldedBZ_sim(sim_folded_data, dsl_fold, Ei, vmi, vma, cma='jet'):
     
-    plt.rcParams['figure.dpi'] = 300
-    plt.rcParams['savefig.dpi'] = 300
+    plt.rcParams['figure.dpi'] = 150
+    plt.rcParams['savefig.dpi'] = 150
     plt.rcParams.update({'font.size': 28})
     
     num_segments = len(dsl_fold)
@@ -702,7 +677,7 @@ def plot_along_path_foldedBZ_sim(sim_folded_data, dsl_fold, Ei, vmi, vma, cma='j
 
 
 
-def generate_BZ_Report_with_Sims(pathSQE_params, BZ_offset, all_slice_names_in_BZ, all_slice_evals, dsl_fold, folded_results, all_sims_in_BZ):
+def generate_BZ_Report_with_Sims(pathSQE_params, BZ_offset, all_sliceInfo_in_BZ, dsl_fold, folded_results, all_sims_in_BZ):
     pdf_filename = os.path.join(pathSQE_params['output directory'],f'Reports/BZ_Report_{BZ_offset}.pdf')
     
     with PdfPages(pdf_filename) as pdf:
@@ -713,20 +688,7 @@ def generate_BZ_Report_with_Sims(pathSQE_params, BZ_offset, all_slice_names_in_B
         sortedWorkspaceNames = [name + '.nxs' for name in pathNames]
 
         # Adaptive colorbars
-        step = float(pathSQE_params['E bins'].split(',')[1])
-        ind_aboveElasticLine = int(np.ceil(3 / step))
-        pathMax = -1
-        pathMin = 1e4
-
-        # Find min/max percentiles across all slices
-        for seg in sortedWorkspaceNames:
-            slice = mtd[seg].getSignalArray()[:, 0, 0, ind_aboveElasticLine:]
-            mask = ~np.isnan(slice) & (slice != 0)
-            if np.any(mask):
-                segMin = np.percentile(slice[mask], 10)
-                segMax = np.percentile(slice[mask], 97)
-                pathMax = max(pathMax, segMax)
-                pathMin = min(pathMin, segMin)
+        pathMin, pathMax = helper.adaptive_colorbars(sortedWorkspaceNames, pathSQE_params, percentile_min=10, percentile_max=97)
 
         # Plot experimental folded data        
         fig_path_foldedBZ = plot_along_path_foldedBZ(foldedSegNames=sortedWorkspaceNames, dsl_fold=dsl_fold,
@@ -746,7 +708,7 @@ def generate_BZ_Report_with_Sims(pathSQE_params, BZ_offset, all_slice_names_in_B
 
         # Plot simulated folded data
         sim_folded_data = [result[2] for result in folded_results]  # Extract final folded sim data
-        simMax = -1
+        simMax = 0
         simMin = 1e4
         # Find min/max percentiles across all slices
         for path_sim in sim_folded_data:
@@ -768,23 +730,28 @@ def generate_BZ_Report_with_Sims(pathSQE_params, BZ_offset, all_slice_names_in_B
 
 
         # Loop over path segments and create slice comparison pages
-        for i in range(len(all_slice_names_in_BZ)):
+        for i in range(len(all_sliceInfo_in_BZ)):
             path_seg = [dsl_fold[i]['seg_start_name'], dsl_fold[i]['seg_end_name']]
-            num_pages = int(np.ceil(len(all_slice_names_in_BZ[i]) / 6))  # 6 pairs (12 subplots) per page
+            num_pages = int(np.ceil(len(all_sliceInfo_in_BZ[i]) / 6))  # 6 pairs (12 subplots) per page
 
             for page_num in range(num_pages):
                 start_idx = page_num * 6
-                end_idx = min((page_num + 1) * 6, len(all_slice_names_in_BZ[i]))
+                end_idx = min((page_num + 1) * 6, len(all_sliceInfo_in_BZ[i]))
 
                 fig, axes = plt.subplots(nrows=3, ncols=4, subplot_kw={'projection': 'mantid'}, figsize=(12, 9))
-                plt.rcParams['figure.dpi'] = 300
-                plt.rcParams['savefig.dpi'] = 300
+                plt.rcParams['figure.dpi'] = 150
+                plt.rcParams['savefig.dpi'] = 150
                 plt.set_cmap(pathSQE_params['cmap'])
 
                 for j, slice_idx in enumerate(range(start_idx, end_idx)):
-                    slice_info = all_slice_names_in_BZ[i][slice_idx]
+                    slice_info = all_sliceInfo_in_BZ[i][slice_idx]
                     slice_name = slice_info[0]
                     slice_ID = slice_info[1]
+                    slice_eval = slice_info[2]
+
+                    if not slice_eval:
+                        print('bad slice inside plotting ', slice_name, slice_ID, slice_eval)
+
                     sim_data = all_sims_in_BZ[i][slice_idx]  # Extract final folded simulation data
                     row_index = j // 2  # 3 rows
                     col_index = (j % 2) * 2  # Exp goes in 0, 2; Sim goes in 1, 3
@@ -793,14 +760,14 @@ def generate_BZ_Report_with_Sims(pathSQE_params, BZ_offset, all_slice_names_in_B
                     step = float(pathSQE_params['E bins'].split(',')[1])
                     ind_aboveElasticLine = int(np.ceil(3 / step))
                     slice = mtd[slice_name].getSignalArray()[:, 0, 0, ind_aboveElasticLine:]
-                    mask = ~np.isnan(slice) & (slice != 0)
+                    mask = ~np.isnan(slice) & (slice > 0)
 
                     if np.any(mask):
                         segMin = np.percentile(slice[mask], 10)
                         segMax = np.percentile(slice[mask], 97)
                         exp_plot = axes[row_index, col_index].pcolormesh(mtd[slice_name], vmin=segMin, vmax=segMax, rasterized=True)
                         axes[row_index, col_index].set_title('ID {}'.format(slice_ID))
-                        if not all_slice_evals[i][slice_idx]:
+                        if not slice_eval:
                             axes[row_index, col_index].set_title('Flagged Slice (ID {})'.format(slice_ID), color='red')
 
                         # x ticks and labels
@@ -850,3 +817,108 @@ def generate_BZ_Report_with_Sims(pathSQE_params, BZ_offset, all_slice_names_in_B
 
                 pdf.savefig(fig)
                 plt.close(fig)
+
+
+
+
+
+def set_seg_xlabels_rerun(seg_axis, full_path, i):
+    if i == len(full_path)-1:
+        prev_end = full_path[i-1][1]
+        curr_start = full_path[i][0]
+        curr_end = full_path[i][1]
+        
+        pt_names = [prev_end, curr_start, curr_end]
+        labels = [pt if len(pt) == 1 else '\\' + pt for pt in pt_names]
+        
+        if curr_start == prev_end:
+            seg_axis.set_xticklabels([r'${}$'.format(labels[1]), r'${}$'.format(labels[2])])
+        else:
+            seg_axis.set_xticklabels([r'${},{}$'.format(labels[0], labels[1]), r'${}$'.format(labels[2])])
+    
+    elif i == 0:
+        curr_start = full_path[i][0]
+        
+        pt_names = [curr_start]
+        labels = [pt if len(pt) == 1 else '\\' + pt for pt in pt_names]
+        seg_axis.set_xticklabels([r'${}$'.format(labels[0]),''])
+        
+    else:
+        prev_end = full_path[i-1][1]
+        curr_start = full_path[i][0]
+        
+        pt_names = [prev_end, curr_start]
+        labels = [pt if len(pt) == 1 else '\\' + pt for pt in pt_names]
+        
+        if curr_start == prev_end:
+            seg_axis.set_xticklabels([r'${}$'.format(labels[1]),''])
+        else:
+            seg_axis.set_xticklabels([r'${},{}$'.format(labels[0], labels[1]),''])
+
+
+
+def plot_along_path_rerun(foldedSegNames, user_defined_Qpoints, vmi, vma, cma='viridis'):
+    
+    plt.rcParams['figure.dpi'] = 150
+    plt.rcParams['savefig.dpi'] = 150
+    plt.rcParams.update({'font.size': 28})
+    
+    full_path = user_defined_Qpoints['path']
+    num_segments = len(full_path)
+
+    ratios = []
+    for k in range(len(full_path)):
+        pt1 = np.array(user_defined_Qpoints['point_coords'][full_path[k][0]])
+        pt2 = np.array(user_defined_Qpoints['point_coords'][full_path[k][1]])
+        ratios.append(np.linalg.norm(pt2-pt1))
+
+    # Add space for the colorbar
+    fig, axes = plt.subplots(1, num_segments, gridspec_kw={'width_ratios': ratios}, figsize=(12, 5), subplot_kw={'projection':'mantid'}) #constrained_layout=True
+    
+    colormesh_pars = {
+        'norm': SymLogNorm(linthresh=vmi, vmin=vmi, vmax=vma),
+        'cmap': cma
+    }
+    
+    for i in range(num_segments):
+        x_start = mtd[foldedSegNames[i]].getDimension(0).getMinimum()
+        x_end = mtd[foldedSegNames[i]].getDimension(0).getMaximum()
+        
+        if i == 0:
+            ax1 = axes[i]
+            ax1.pcolormesh(mtd[foldedSegNames[i]], rasterized=True, **colormesh_pars)
+            ax1.set_ylabel('E (meV)')
+            ax1.set_xlabel('')
+            #ax1.set_ylim(0., Ei)
+            ax1.set_xticks([x_start, x_end])
+            set_seg_xlabels_rerun(ax1, full_path, i)
+            ax1.tick_params(direction='in')
+        elif i == num_segments - 1:
+            axL = axes[i]
+            mappable = axL.pcolormesh(mtd[foldedSegNames[i]], rasterized=True, **colormesh_pars)
+            axL.get_yaxis().set_visible(False)
+            axL.set_xlabel('')
+            axL.set_xticks([x_start, x_end])
+            set_seg_xlabels_rerun(axL, full_path, i)
+            axL.tick_params(direction='in')
+        else:
+            ax = axes[i]
+            ax.pcolormesh(mtd[foldedSegNames[i]], rasterized=True, **colormesh_pars)
+            ax.get_yaxis().set_visible(False)
+            ax.set_xlabel('')
+            ax.set_xticks([x_start, x_end])
+            set_seg_xlabels_rerun(ax, full_path, i)
+            ax.tick_params(direction='in')
+    
+    plt.subplots_adjust(wspace=0, hspace=0)
+
+    # Create the colorbar
+    cb_ax = fig.add_axes([.91,.124,.02,.754])
+    cbar = fig.colorbar(mappable,orientation='vertical',cax=cb_ax)
+    cbar.ax.tick_params(labelsize=15)
+
+    plt.rcParams.update({'font.size': 10})
+
+    return fig
+    
+

@@ -2,6 +2,7 @@ import numpy as np
 import os
 import re
 
+from . import Resolution as Res
 
 
 def load_previous_simulation_progress(output_folder, user_defined_Qpoints, removed_BZ):
@@ -346,6 +347,75 @@ def SQE_to_2d_spectrum(pathSQE_params, output):
 
     # Step 2: Apply Gaussian smoothing
     FineBinnedSQE = gaussian_filter(FineBinnedSQE, sigma=(0.5, pathSQE_params['energy blurring sigma']*4))                               # THIS ONE
+
+    # Step 3: Rebin Q dimension (fine → coarse) using NumPy reshape and sum
+    CoarseBinnedSQE = FineBinnedSQE.reshape(nql, 4, -1).sum(axis=1)  # Sum pairs of adjacent fine Q bins             # THIS ALSO 2
+
+    # Step 4: Rebin E dimension (fine → coarse) using NumPy histogram
+    BinnedSQE = np.zeros((nql, ne_exp))
+    for ih in range(nql):
+        hist, _ = np.histogram(np.linspace(E_min, E_max, FineBinnedSQE.shape[1]), bins=E_bin_edges, weights=CoarseBinnedSQE[ih, :])
+        BinnedSQE[ih, :] = hist
+
+    return BinnedSQE
+
+
+def SQE_to_2d_spectrum_advancedRes(pathSQE_params, output): 
+    """
+    Bins simulated SQE data to a finer grid, applies smoothing, 
+    and then rebins to match experimental resolution.
+
+    Parameters:
+    - pathSQE_params: dict, contains experimental binning information
+    - output: ndarray, simulated data (fine resolution)
+
+    Returns:
+    - BinnedSQE: ndarray, rebinned SQE to match experimental binning
+    """
+
+    res_params = pathSQE_params['resolution blurring']
+    ElasticFWHM = res_params[0]
+    QResolution = res_params[1]/(2.35*pathSQE_params['qdim0 step size'])
+    ResolutionType = "instrument"
+    InstrumentName = res_params[2]
+    IncidentEnergy = pathSQE_params['T and Ei conditions'][0][1]
+
+    E_min = float(pathSQE_params['E bins'].split(',')[0])
+    E_max = float(pathSQE_params['E bins'].split(',')[2])
+    E_step = float(pathSQE_params['E bins'].split(',')[1])
+    
+    nql_fine = output.shape[1]  # Fine Q resolution from simulation
+    finer_E_step = E_step / 4   # Simulated data has finer E step                           # THIS AND BELOW 2
+    nql = nql_fine // 4         # Experimental Q resolution (factor of 2 binning)
+    
+    # Generate energy bin edges
+    E_bin_edges = np.arange(E_min, E_max+E_step, E_step)
+    evalues = np.arange(E_min+0.5*finer_E_step, E_max, finer_E_step)
+    ne_exp = len(E_bin_edges) - 1
+
+    # Fine binning storage
+    FineBinnedSQE = np.zeros((nql_fine, len(np.arange(E_min, E_max, finer_E_step))))
+
+    #create the resolution function object
+    inst = Res.Instrument(InstrumentName,ElasticFWHM,IncidentEnergy)
+    resolution = Res.Resolution(type=ResolutionType,inst=inst,sigmaq=QResolution)
+
+    # Energy binning with convolution
+    for ih in range(nql_fine):  # q-points
+        for j in range(len(output[0, 0, :])):  # phonon branches
+            E_phonon = output[0][ih][j]  # in meV (already converted from THz)
+            intensity = output[1][ih][j]
+            #print(ih, j, intensity)
+            
+            conv = resolution.Gauss(evalues, 0, E_phonon, 0, escale=2.4, qscale=1)
+            
+            FineBinnedSQE[ih, :] += intensity * conv
+
+    
+    from scipy.ndimage import gaussian_filter1d
+
+    # Use ndimage Gaussian blur along the Q direction (axis 0)
+    FineBinnedSQE = gaussian_filter1d(FineBinnedSQE, sigma=QResolution, axis=0, mode='nearest')
 
     # Step 3: Rebin Q dimension (fine → coarse) using NumPy reshape and sum
     CoarseBinnedSQE = FineBinnedSQE.reshape(nql, 4, -1).sum(axis=1)  # Sum pairs of adjacent fine Q bins             # THIS ALSO 2
